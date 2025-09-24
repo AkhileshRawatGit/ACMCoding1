@@ -181,53 +181,31 @@ function switchTab(tab) {
 }
 
 async function handleLogin(e) {
-  e.preventDefault()
-  const username = document.getElementById("loginUsername").value
-  const password = document.getElementById("loginPassword").value
+  e.preventDefault();
 
-  console.log("Attempting login with:", username) // Debug line
+  const email = document.getElementById("loginEmail").value;
+  const password = document.getElementById("loginPassword").value;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/signin`, {
+    const response = await fetch("/api/auth/login", { // ✅ relative path
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    })
+      body: JSON.stringify({ email, password }),
+    });
 
-    console.log("Response status:", response.status) // Debug line
-    console.log("Response headers:", response.headers) // Debug line
-
-    if (!response.ok) {
-      console.log("Response not OK, status:", response.status)
-      alert("Server error: " + response.status)
-      return
-    }
-
-    const data = await response.json()
-
-    if (!data.accessToken) {
-      alert("Login failed: Access token missing from response.")
-      return
-    }
-    if (!data.user) {
-      alert("Login failed: User data missing from response. Please check backend configuration.")
-      console.error("Login response missing user data:", data)
-      return
-    }
+    const data = await response.json();
 
     if (response.ok) {
-      localStorage.setItem("token", data.accessToken)
-      localStorage.setItem("user", JSON.stringify(data.user))
-      currentUser = data.user
-      showDashboard()
+      alert("Login successful!");
+      // Store token or redirect
     } else {
-      alert(data.message || "Login failed")
+      alert(data.message || "Login failed");
     }
   } catch (error) {
-    console.error("Full error:", error) // Debug line
-    alert("Login failed: " + error.message)
+    alert("Login failed: " + error.message);
   }
 }
+
 
 async function handleRegister(e) {
   e.preventDefault();
