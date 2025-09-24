@@ -180,30 +180,56 @@ function switchTab(tab) {
   }
 }
 
-async function handleLogin(e) {
-  e.preventDefault();
-
-  const email = document.getElementById("loginEmail").value;
-  const password = document.getElementById("loginPassword").value;
-
-  try {
-    const response = await fetch("/api/auth/login", { // ✅ relative path
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      alert("Login successful!");
-      // Store token or redirect
-    } else {
-      alert(data.message || "Login failed");
+// Wait till DOM is fully loaded
+document.addEventListener("DOMContentLoaded", () => {
+    const loginForm = document.getElementById("loginForm");
+    if (loginForm) {
+        loginForm.addEventListener("submit", handleLogin);
     }
-  } catch (error) {
-    alert("Login failed: " + error.message);
-  }
+});
+
+async function handleLogin(e) {
+    e.preventDefault();
+
+    const username = document.getElementById("loginUsername").value;
+    const password = document.getElementById("loginPassword").value;
+
+    console.log("Attempting login with:", username);
+
+    try {
+        // Relative path ensures it works on Railway and local
+        const response = await fetch("/api/auth/signin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+        });
+
+        console.log("Response status:", response.status);
+
+        if (!response.ok) {
+            alert("Server error: " + response.status);
+            return;
+        }
+
+        const data = await response.json();
+
+        if (!data.accessToken) {
+            alert("Login failed: Access token missing from response.");
+            return;
+        }
+
+        // Store token & user info
+        localStorage.setItem("token", data.accessToken);
+        localStorage.setItem("user", JSON.stringify(data.user));
+
+        console.log("Login successful:", data.user);
+        // call your dashboard/show function
+        showDashboard();
+
+    } catch (error) {
+        console.error("Full error:", error);
+        alert("Login failed: " + error.message);
+    }
 }
 
 
