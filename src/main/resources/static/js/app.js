@@ -230,29 +230,31 @@ async function handleLogin(e) {
 }
 
 async function handleRegister(e) {
-  e.preventDefault()
-  const username = document.getElementById("registerUsername").value
-  const email = document.getElementById("registerEmail").value
-  const password = document.getElementById("registerPassword").value
-  const role = document.getElementById("registerRole").value
+  e.preventDefault();
+
+  const username = document.getElementById("registerUsername").value;
+  const email = document.getElementById("registerEmail").value;
+  const password = document.getElementById("registerPassword").value;
+  const role = document.getElementById("registerRole").value;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+    // Relative path ensures it works both locally and on Railway
+    const response = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, email, password, role }),
-    })
+    });
 
-    const data = await response.json()
+    const data = await response.json();
 
     if (response.ok) {
-      alert("Registration successful! Please login.")
-      switchTab("login")
+      alert("Registration successful! Please login.");
+      switchTab("login"); // If you have tab switching logic
     } else {
-      alert(data.message || "Registration failed")
+      alert(data.message || "Registration failed");
     }
   } catch (error) {
-    alert("Registration failed: " + error.message)
+    alert("Registration failed: " + error.message);
   }
 }
 
