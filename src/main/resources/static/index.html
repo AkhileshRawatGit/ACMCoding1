@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeArena - Online Coding Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/clike/clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/closebrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/matchbrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/selection/active-line.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Updated to modern dark gradient similar to Striver */
+        .gradient-bg {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        }
+
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        /* Updated button styling to match modern coding platforms */
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+        }
+
+        .pulse-ring {
+            animation: pulse-ring 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(.33);
+            }
+            80%, 100% {
+                opacity: 0;
+            }
+        }
+
+        .difficulty-easy {
+            background: linear-gradient(135deg, #10b981, #34d399);
+            color: white;
+        }
+
+        .difficulty-medium {
+            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+            color: white;
+        }
+
+        .difficulty-hard {
+            background: linear-gradient(135deg, #ef4444, #f87171);
+            color: white;
+        }
+
+        /* Professional code editor container styling */
+        .code-editor-container {
+            border-radius: 0;
+            overflow: hidden;
+            background: #1e1e1e;
+            border: 1px solid #333;
+        }
+
+        .modal-backdrop {
+            backdrop-filter: blur(5px);
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .loading-dots {
+            display: inline-block;
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+
+        .loading-dots div {
+            position: absolute;
+            top: 33px;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #667eea;
+            animation-timing-function: cubic-bezier(0, 1, 1, 0);
+        }
+
+        .loading-dots div:nth-child(1) {
+            left: 8px;
+            animation: loading-dots1 0.6s infinite;
+        }
+
+        .loading-dots div:nth-child(2) {
+            left: 8px;
+            animation: loading-dots2 0.6s infinite;
+        }
+
+        .loading-dots div:nth-child(3) {
+            left: 32px;
+            animation: loading-dots2 0.6s infinite;
+        }
+
+        .loading-dots div:nth-child(4) {
+            left: 56px;
+            animation: loading-dots3 0.6s infinite;
+        }
+
+        @keyframes loading-dots1 {
+            0% { transform: scale(0); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes loading-dots3 {
+            0% { transform: scale(1); }
+            100% { transform: scale(0); }
+        }
+
+        @keyframes loading-dots2 {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(24px, 0); }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        /* Professional dark theme code editor styling similar to Striver */
+        .CodeMirror {
+            height: 450px !important;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', monospace !important;
+            font-size: 14px !important;
+            line-height: 1.6 !important;
+            background: #1e1e1e !important;
+            color: #d4d4d4 !important;
+            border: none !important;
+        }
+
+        /* Enhanced dark theme colors for better readability */
+        .CodeMirror.cm-s-default {
+            background: #1e1e1e !important;
+            color: #d4d4d4 !important;
+        }
+
+        .CodeMirror .CodeMirror-gutters {
+            background: #252526 !important;
+            border-right: 1px solid #3e3e42 !important;
+            color: #858585 !important;
+        }
+
+        .CodeMirror .CodeMirror-linenumber {
+            color: #858585 !important;
+            padding: 0 8px !important;
+        }
+
+        .CodeMirror .CodeMirror-cursor {
+            border-left: 2px solid #ffffff !important;
+        }
+
+        .CodeMirror .CodeMirror-selected {
+            background: #264f78 !important;
+        }
+
+        .CodeMirror .CodeMirror-activeline-background {
+            background: #2a2d2e !important;
+        }
+
+        /* Syntax highlighting colors similar to VS Code Dark theme */
+        .CodeMirror .cm-keyword {
+            color: #569cd6 !important;
+            font-weight: 500 !important;
+        }
+
+        .CodeMirror .cm-string {
+            color: #ce9178 !important;
+        }
+
+        .CodeMirror .cm-comment {
+            color: #6a9955 !important;
+            font-style: italic !important;
+        }
+
+        .CodeMirror .cm-number {
+            color: #b5cea8 !important;
+        }
+
+        .CodeMirror .cm-variable {
+            color: #9cdcfe !important;
+        }
+
+        .CodeMirror .cm-variable-2 {
+            color: #4fc1ff !important;
+        }
+
+        .CodeMirror .cm-def {
+            color: #dcdcaa !important;
+        }
+
+        .CodeMirror .cm-operator {
+            color: #d4d4d4 !important;
+        }
+
+        .CodeMirror .cm-bracket {
+            color: #ffd700 !important;
+        }
+
+        .CodeMirror .cm-tag {
+            color: #569cd6 !important;
+        }
+
+        .CodeMirror .cm-attribute {
+            color: #9cdcfe !important;
+        }
+
+        .CodeMirror .cm-builtin {
+            color: #4ec9b0 !important;
+        }
+
+        .CodeMirror .cm-type {
+            color: #4ec9b0 !important;
+        }
+
+        /* Enhanced editor header styling */
+        .editor-header {
+            background: #2d2d30 !important;
+            border-bottom: 1px solid #3e3e42 !important;
+            color: #cccccc !important;
+        }
+
+        .editor-header select {
+            background: #3c3c3c !important;
+            color: #cccccc !important;
+            border: 1px solid #464647 !important;
+        }
+
+        .editor-header select:focus {
+            border-color: #007acc !important;
+            box-shadow: 0 0 0 1px #007acc !important;
+        }
+
+        /* Professional submit indicator */
+        .submit-success {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #10b981, #34d399);
+            color: white;
+            padding: 24px 32px;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(16, 185, 129, 0.3);
+            z-index: 1000;
+            animation: submitPulse 2.5s ease-in-out;
+            backdrop-filter: blur(10px);
+        }
+
+        @keyframes submitPulse {
+            0% {
+                transform: translate(-50%, -50%) scale(0.8);
+                opacity: 0;
+            }
+            20% {
+                transform: translate(-50%, -50%) scale(1.05);
+                opacity: 1;
+            }
+            80% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(0.95);
+                opacity: 0;
+            }
+        }
+
+        /* Enhanced button styling for coding interface */
+        .coding-btn {
+            font-weight: 600;
+            letter-spacing: 0.025em;
+            transition: all 0.2s ease;
+            border: none;
+            outline: none;
+        }
+
+        .coding-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .coding-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Results panel styling */
+        .results-panel {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+        }
+
+        .test-case-result {
+            background: #2d2d30;
+            border: 1px solid #3e3e42;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .test-case-result.passed {
+            border-left: 4px solid #10b981;
+        }
+
+        .test-case-result.failed {
+            border-left: 4px solid #ef4444;
+        }
+
+        /* Scrollbar styling for dark theme */
+        .CodeMirror-scroll::-webkit-scrollbar {
+            width: 12px;
+        }
+
+        .CodeMirror-scroll::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+
+        .CodeMirror-scroll::-webkit-scrollbar-thumb {
+            background: #424242;
+            border-radius: 6px;
+        }
+
+        .CodeMirror-scroll::-webkit-scrollbar-thumb:hover {
+            background: #4f4f4f;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+<!-- Navigation -->
+<nav id="navbar" class="gradient-bg text-white p-4 shadow-lg hidden">
+    <div class="container mx-auto flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+            <i class="fas fa-code text-2xl"></i>
+            <h1 class="text-xl font-bold">CodeArena</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                    <i class="fas fa-user text-sm"></i>
+                </div>
+                <span id="userInfo" class="font-medium"></span>
+            </div>
+            <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition-all duration-300 hover:transform hover:scale-105">
+                <i class="fas fa-sign-out-alt mr-2"></i>Logout
+            </button>
+        </div>
+    </div>
+</nav>
+
+<!-- Login/Register Screen -->
+<div id="authScreen" class="min-h-screen gradient-bg flex items-center justify-center p-4">
+    <div class="glass-effect p-8 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in">
+        <div class="text-center mb-8">
+            <i class="fas fa-code text-4xl text-indigo-600 mb-4"></i>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">CodeArena</h1>
+            <p class="text-gray-600">Your competitive programming platform</p>
+        </div>
+
+        <div class="mb-6">
+            <div class="flex border-b border-gray-200">
+                <button id="loginTab" class="flex-1 py-3 px-4 text-center border-b-2 border-indigo-500 text-indigo-600 font-medium transition-all duration-300">
+                    <i class="fas fa-sign-in-alt mr-2"></i>Login
+                </button>
+                <button id="registerTab" class="flex-1 py-3 px-4 text-center text-gray-500 font-medium transition-all duration-300 hover:text-gray-700">
+                    <i class="fas fa-user-plus mr-2"></i>Register
+                </button>
+            </div>
+        </div>
+
+        <!-- Login Form -->
+        <form id="loginForm" class="space-y-6">
+            <div class="relative">
+                <i class="fas fa-user absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                <input type="text" id="loginUsername" class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300" placeholder="Username" required>
+            </div>
+            <div class="relative">
+                <i class="fas fa-lock absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                <input type="password" id="loginPassword" class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300" placeholder="Password" required>
+            </div>
+            <button type="submit" class="w-full btn-primary text-white py-3 px-4 rounded-lg font-medium">
+                <i class="fas fa-sign-in-alt mr-2"></i>Login
+            </button>
+        </form>
+
+        <!-- Register Form -->
+        <form id="registerForm" class="space-y-6 hidden">
+            <div class="relative">
+                <i class="fas fa-user absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                <input type="text" id="registerUsername" class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300" placeholder="Username" required>
+            </div>
+            <div class="relative">
+                <i class="fas fa-envelope absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                <input type="email" id="registerEmail" class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300" placeholder="Email" required>
+            </div>
+            <div class="relative">
+                <i class="fas fa-lock absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                <input type="password" id="registerPassword" class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300" placeholder="Password" required>
+            </div>
+            <div class="relative">
+                <i class="fas fa-user-tag absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                <select id="registerRole" class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300">
+                    <option value="PARTICIPANT">Participant</option>
+                    <option value="ADMIN">Admin</option>
+                </select>
+            </div>
+            <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium transition-all duration-300 hover:transform hover:scale-105">
+                <i class="fas fa-user-plus mr-2"></i>Register
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Admin Dashboard -->
+<div id="adminDashboard" class="container mx-auto p-6 hidden animate-fade-in">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h2 class="text-3xl font-bold text-gray-800 mb-2">Admin Dashboard</h2>
+            <p class="text-gray-600">Manage coding questions and test cases</p>
+        </div>
+        <button id="addQuestionBtn" class="btn-primary text-white px-6 py-3 rounded-lg font-medium shadow-lg">
+            <i class="fas fa-plus mr-2"></i>Add New Question
+        </button>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white rounded-xl p-6 shadow-lg card-hover">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm font-medium">Total Questions</p>
+                    <p id="totalQuestions" class="text-3xl font-bold text-gray-800">0</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-question-circle text-blue-600 text-xl"></i>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl p-6 shadow-lg card-hover">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm font-medium">Easy Questions</p>
+                    <p id="easyQuestions" class="text-3xl font-bold text-green-600">0</p>
+                </div>
+                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-check-circle text-green-600 text-xl"></i>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl p-6 shadow-lg card-hover">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm font-medium">Hard Questions</p>
+                    <p id="hardQuestions" class="text-3xl font-bold text-red-600">0</p>
+                </div>
+                <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-fire text-red-600 text-xl"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Questions List -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-xl font-semibold text-gray-800">
+                <i class="fas fa-list mr-2"></i>Questions
+            </h3>
+            <div class="flex items-center space-x-4">
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" id="searchQuestions" placeholder="Search questions..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                </div>
+                <select id="filterDifficulty" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    <option value="">All Difficulties</option>
+                    <option value="EASY">Easy</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HARD">Hard</option>
+                </select>
+            </div>
+        </div>
+        <div id="questionsList" class="space-y-4">
+            <!-- Questions will be loaded here -->
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Question Modal -->
+<div id="questionModal" class="fixed inset-0 modal-backdrop hidden items-center justify-center p-4 z-50">
+    <div class="glass-effect rounded-2xl w-full max-w-6xl max-h-screen overflow-y-auto shadow-2xl animate-slide-in">
+        <div class="sticky top-0 glass-effect border-b border-gray-200 px-6 py-4 rounded-t-2xl">
+            <div class="flex justify-between items-center">
+                <h3 id="modalTitle" class="text-2xl font-bold text-gray-800">
+                    <i class="fas fa-plus-circle mr-2"></i>Add New Question
+                </h3>
+                <button id="closeModal" class="text-gray-500 hover:text-gray-700 text-2xl transition-colors duration-300">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
+        <form id="questionForm" class="p-6 space-y-6">
+            <input type="hidden" id="questionId">
+
+            <!-- Basic Info -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-heading mr-2"></i>Title
+                    </label>
+                    <input type="text" id="questionTitle" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300" placeholder="Enter question title" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-layer-group mr-2"></i>Difficulty
+                    </label>
+                    <select id="questionDifficulty" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300">
+                        <option value="EASY">🟢 Easy (2 marks/test case)</option>
+                        <option value="MEDIUM">🟡 Medium (3 marks/test case)</option>
+                        <option value="HARD">🔴 Hard (5 marks/test case)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    <i class="fas fa-align-left mr-2"></i>Description
+                </label>
+                <textarea id="questionDescription" rows="6" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300" placeholder="Enter detailed problem description..." required></textarea>
+            </div>
+
+            <!-- Type Configuration -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    <i class="fas fa-keyboard mr-2"></i>Input Format (General Guidance)
+                </label>
+                <select id="questionInputFormat" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300">
+                    <optgroup label="🔢 Single Values">
+                        <option value="SINGLE_INTEGER">Single Integer (5)</option>
+                        <option value="SINGLE_FLOAT">Single Float (3.14)</option>
+                        <option value="SINGLE_DOUBLE">Single Double (3.14159)</option>
+                        <option value="SINGLE_CHAR">Single Character ('a')</option>
+                        <option value="SINGLE_BOOLEAN">Single Boolean (true)</option>
+                        <option value="SINGLE_STRING">Single String ("hello")</option>
+                    </optgroup>
+
+                    <optgroup label="👫 Two Values">
+                        <option value="TWO_INTEGERS">Two Integers (5, 10)</option>
+                        <option value="TWO_FLOATS">Two Floats (3.14, 2.71)</option>
+                        <option value="TWO_DOUBLES">Two Doubles (3.14159, 2.71828)</option>
+                        <option value="TWO_CHARS">Two Characters ('a', 'b')</option>
+                        <option value="TWO_BOOLEANS">Two Booleans (true, false)</option>
+                        <option value="TWO_STRINGS">Two Strings ("hello", "world")</option>
+                    </optgroup>
+
+                    <optgroup label="📊 Single Arrays">
+                        <option value="SINGLE_INTEGER_ARRAY">Integer Array ([1,2,3,4,5])</option>
+                        <option value="SINGLE_FLOAT_ARRAY">Float Array ([1.1,2.2,3.3])</option>
+                        <option value="SINGLE_DOUBLE_ARRAY">Double Array ([1.11,2.22,3.33])</option>
+                        <option value="SINGLE_CHAR_ARRAY">Character Array (['a','b','c'])</option>
+                        <option value="SINGLE_STRING_ARRAY">String Array (["hello","world"])</option>
+                        <option value="SINGLE_BOOLEAN_ARRAY">Boolean Array ([true,false,true])</option>
+                    </optgroup>
+
+                    <optgroup label="📊📊 Multiple Arrays">
+                        <option value="TWO_INTEGER_ARRAYS">Two Integer Arrays ([1,2,3], [4,5,6])</option>
+                        <option value="TWO_FLOAT_ARRAYS">Two Float Arrays ([1.1,2.2], [3.3,4.4])</option>
+                        <option value="TWO_DOUBLE_ARRAYS">Two Double Arrays</option>
+                        <option value="TWO_CHAR_ARRAYS">Two Character Arrays</option>
+                        <option value="TWO_STRING_ARRAYS">Two String Arrays</option>
+                        <option value="TWO_BOOLEAN_ARRAYS">Two Boolean Arrays</option>
+                        <option value="THREE_INTEGER_ARRAYS">Three Integer Arrays</option>
+                        <option value="THREE_STRING_ARRAYS">Three String Arrays</option>
+                    </optgroup>
+
+                    <optgroup label="🔲 Matrix Formats">
+                        <option value="INTEGER_MATRIX">Integer Matrix ([[1,2,3],[4,5,6]])</option>
+                        <option value="CHAR_MATRIX">Character Matrix ([['a','b'],['c','d']])</option>
+                        <option value="STRING_MATRIX">String Matrix</option>
+                        <option value="BOOLEAN_MATRIX">Boolean Matrix</option>
+                    </optgroup>
+
+                    <optgroup label="🔀 Mixed Types">
+                        <option value="INTEGER_AND_ARRAY">Integer + Array (n, [1,2,3...])</option>
+                        <option value="INTEGER_AND_STRING">Integer + String (5, "hello")</option>
+                        <option value="INTEGER_AND_TWO_ARRAYS">Integer + Two Arrays</option>
+                        <option value="STRING_AND_INTEGER">String + Integer ("hello", 5)</option>
+                        <option value="STRING_AND_ARRAY">String + Array ("hello", [1,2,3])</option>
+                    </optgroup>
+
+                    <optgroup label="📝 Multiple Lines">
+                        <option value="MULTIPLE_INTEGERS">Multiple Integers (separate lines)</option>
+                        <option value="MULTIPLE_STRINGS">Multiple Strings (separate lines)</option>
+                        <option value="MULTIPLE_LINES_MIXED">Mixed Types (multiple lines)</option>
+                    </optgroup>
+
+                    <optgroup label="🌳 LeetCode Tree/Graph">
+                        <option value="BINARY_TREE_ARRAY">Binary Tree ([1,2,3,null,null,4,5])</option>
+                        <option value="GRAPH_ADJACENCY_LIST">Graph Adjacency List ([[1,2],[0,2],[0,1]])</option>
+                        <option value="GRAPH_EDGES_LIST">Graph Edges List ([[0,1],[1,2],[2,0]])</option>
+                        <option value="LINKED_LIST_ARRAY">Linked List ([1,2,3,4,5])</option>
+                    </optgroup>
+
+                    <optgroup label="🎯 Special LeetCode">
+                        <option value="INTERVALS_ARRAY">Intervals ([[1,3],[2,6],[8,10]])</option>
+                        <option value="COORDINATES_ARRAY">Coordinates ([[0,0],[1,1],[2,2]])</option>
+                        <option value="KEY_VALUE_PAIRS">Key-Value Pairs ([["key1","val1"]])</option>
+                    </optgroup>
+
+                    <optgroup label="🔄 Nested Structures">
+                        <option value="NESTED_INTEGER_ARRAY">Nested Integer Array ([[1,2],[3,4,5]])</option>
+                        <option value="NESTED_STRING_ARRAY">Nested String Array ([["a","b"],["c"]])</option>
+                        <option value="ARRAY_OF_OBJECTS">Array of Objects</option>
+                    </optgroup>
+
+                    <optgroup label="📏 Variable Length">
+                        <option value="VARIABLE_INTEGERS">Variable Integers (n, then n integers)</option>
+                        <option value="VARIABLE_STRINGS">Variable Strings (n, then n strings)</option>
+                        <option value="VARIABLE_ARRAYS">Variable Arrays (n, then n arrays)</option>
+                    </optgroup>
+
+                    <optgroup label="🧪 Test Cases">
+                        <option value="MULTIPLE_TEST_CASES">Multiple Test Cases (T, then T cases)</option>
+                        <option value="UNTIL_EOF">Until EOF (read until end)</option>
+                        <option value="CUSTOM_FORMAT">Custom Format</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <!-- Test Cases Section -->
+            <div class="bg-gray-50 rounded-xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <label class="block text-lg font-semibold text-gray-800">
+                        <i class="fas fa-vial mr-2"></i>Test Cases
+                    </label>
+                    <button type="button" id="addTestCaseBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:transform hover:scale-105">
+                        <i class="fas fa-plus mr-2"></i>Add Test Case
+                    </button>
+                </div>
+                <div id="testCasesList" class="space-y-4">
+                    <!-- Test cases will be added here -->
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                <button type="button" id="cancelBtn" class="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-all duration-300">
+                    <i class="fas fa-times mr-2"></i>Cancel
+                </button>
+                <button type="submit" class="btn-primary text-white px-6 py-3 rounded-lg font-medium">
+                    <i class="fas fa-save mr-2"></i>Save Question
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Participant Dashboard -->
+<div id="participantDashboard" class="container mx-auto p-6 hidden animate-fade-in">
+    <div class="text-center mb-8">
+        <h2 class="text-4xl font-bold text-gray-800 mb-4">Welcome to CodeArena</h2>
+        <p class="text-xl text-gray-600">Challenge yourself with coding problems</p>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-4">
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" id="participantSearch" placeholder="Search problems..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                </div>
+                <select id="participantFilter" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    <option value="">All Difficulties</option>
+                    <option value="EASY">🟢 Easy</option>
+                    <option value="MEDIUM">🟡 Medium</option>
+                    <option value="HARD">🔴 Hard</option>
+                </select>
+            </div>
+            <div class="flex items-center space-x-4 text-sm text-gray-600">
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span>Easy</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                    <span>Medium</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+                    <span>Hard</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Questions Grid -->
+    <div id="participantQuestionsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Questions will be loaded here -->
+    </div>
+</div>
+
+<!-- Coding Interface -->
+<div id="codingInterface" class="hidden">
+    <div class="container mx-auto p-6">
+        <!-- Question Header -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-6 animate-fade-in">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-4 mb-4">
+                        <button id="backToQuestions" class="text-indigo-600 hover:text-indigo-800 font-medium transition-colors duration-300">
+                            <i class="fas fa-arrow-left mr-2"></i>Back to Questions
+                        </button>
+                    </div>
+                    <h2 id="currentQuestionTitle" class="text-3xl font-bold text-gray-800 mb-3"></h2>
+                    <div class="flex items-center space-x-4">
+                        <span id="currentQuestionDifficulty" class="px-4 py-2 rounded-full text-sm font-medium"></span>
+                        <span id="currentQuestionInputFormat" class="px-4 py-2 rounded-full text-sm bg-gray-100 text-gray-700"></span>
+                    </div>
+                </div>
+            </div>
+            <div id="currentQuestionDescription" class="text-gray-700 whitespace-pre-wrap leading-relaxed"></div>
+        </div>
+
+        <!-- Coding Area -->
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <!-- Code Editor -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden animate-fade-in">
+                <!-- Updated editor header with dark theme -->
+                <div class="editor-header px-6 py-4 border-b border-gray-200">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-code mr-2"></i>Code Editor
+                        </h3>
+                        <select id="languageSelect" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            <option value="71">🐍 Python</option>
+                            <option value="62">☕ Java</option>
+                            <option value="54">⚡ C++</option>
+                            <option value="50">🔧 C</option>
+                            <option value="63">🟨 JavaScript</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="code-editor-container">
+                    <textarea id="codeEditor" class="w-full h-96 font-mono text-sm"></textarea>
+                </div>
+
+                <!-- Action Buttons -->
+                <!-- Enhanced button styling with coding-btn class -->
+                <div class="p-6 bg-gray-50 border-t border-gray-200">
+                    <div class="flex flex-wrap gap-3">
+                        <button id="compileBtn" class="coding-btn flex-1 bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-3 rounded-lg font-medium transition-all duration-300">
+                            <i class="fas fa-hammer mr-2"></i>Compile (3 Public Tests)
+                        </button>
+                        <button id="runBtn" class="coding-btn flex-1 bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-lg font-medium transition-all duration-300">
+                            <i class="fas fa-play mr-2"></i>Run (All Tests)
+                        </button>
+                        <button id="submitBtn" class="coding-btn flex-1 btn-primary text-white px-4 py-3 rounded-lg font-medium">
+                            <i class="fas fa-paper-plane mr-2"></i>Submit Final
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Panel -->
+            <!-- Enhanced results panel with dark theme -->
+            <div class="bg-white rounded-xl shadow-lg p-6 animate-fade-in">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                    <i class="fas fa-chart-line mr-2"></i>Test Results
+                </h3>
+                <div id="resultsContainer" class="results-panel p-4 space-y-4">
+                    <div class="text-center py-12 text-gray-400">
+                        <i class="fas fa-play-circle text-4xl mb-4"></i>
+                        <p>Run your code to see results...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Spinner -->
+<div id="loadingSpinner" class="fixed inset-0 modal-backdrop hidden items-center justify-center z-50">
+    <div class="glass-effect p-8 rounded-2xl text-center">
+        <div class="loading-dots mx-auto mb-4">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+        </div>
+        <p class="text-gray-700 font-medium">Processing your code...</p>
+    </div>
+</div>
+
+<!-- Notification -->
+<div id="notification" class="notification">
+    <div class="bg-white rounded-lg shadow-lg p-4 border-l-4 border-green-500">
+        <div class="flex items-center">
+            <i class="fas fa-check-circle text-green-500 mr-3"></i>
+            <span id="notificationText" class="text-gray-800 font-medium"></span>
+        </div>
+    </div>
+</div>
+
+<!-- Submit Success Indicator -->
+<div id="submitIndicator" class="submit-success hidden">
+    <div class="flex items-center space-x-3">
+        <i class="fas fa-check-circle text-2xl"></i>
+        <div>
+            <div class="font-bold text-lg">Code Submitted!</div>
+            <div id="submitScore" class="text-sm opacity-90"></div>
+        </div>
+    </div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
