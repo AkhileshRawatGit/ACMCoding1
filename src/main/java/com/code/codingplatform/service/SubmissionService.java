@@ -4,10 +4,13 @@ import com.code.codingplatform.model.Question;
 import com.code.codingplatform.model.Submission;
 import com.code.codingplatform.model.TestCase;
 import com.code.codingplatform.model.TestResult;
+import com.code.codingplatform.model.User;
+import com.code.codingplatform.model.CodeDraft;
 import com.code.codingplatform.payload.response.CodeExecutionResponse;
 import com.code.codingplatform.repository.QuestionRepository;
 import com.code.codingplatform.repository.SubmissionRepository;
 import com.code.codingplatform.repository.UserRepository;
+import com.code.codingplatform.repository.CodeDraftRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -33,6 +38,9 @@ public class SubmissionService {
 
     @Autowired
     private PistonService pistonService;
+
+    @Autowired
+    private CodeDraftRepository codeDraftRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -74,7 +82,6 @@ public class SubmissionService {
         }
         Question question = questionOptional.get();
 
-        // Submit uses all test cases (public + private)
         List<TestCase> allTestCases = question.getTestCases();
 
         CodeExecutionResponse response = executeTests(question, code, languageId, userId, allTestCases, "SUBMIT");
@@ -83,7 +90,7 @@ public class SubmissionService {
         Submission submission = new Submission();
         submission.setUser(userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found")));
         submission.setQuestion(question);
-        submission.setCode(code); // Save the user's raw code
+        submission.setCode(code);
         submission.setLanguageId(languageId);
         submission.setStatus(response.getStatus());
         submission.setPassedTestCases(response.getPassedTestCases());
@@ -92,7 +99,85 @@ public class SubmissionService {
         submission.setTotalMarks(response.getTotalMarks());
         submissionRepository.save(submission);
 
+        updateGrandTotalScore(userId);
+
         return response;
+    }
+
+    @Transactional
+    public Map<String, Object> submitAllQuestions(Long userId) throws Exception {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Get all code drafts for this user
+        List<CodeDraft> drafts = codeDraftRepository.findAll().stream()
+                .filter(draft -> draft.getUser().getId().equals(userId))
+                .toList();
+
+        List<Map<String, Object>> results = new ArrayList<>();
+        int totalScore = 0;
+
+        for (CodeDraft draft : drafts) {
+            try {
+                CodeExecutionResponse response = submitCode(
+                        draft.getQuestion().getId(),
+                        draft.getCode(),
+                        draft.getLanguageId(),
+                        userId
+                );
+
+                Map<String, Object> questionResult = new HashMap<>();
+                questionResult.put("questionId", draft.getQuestion().getId());
+                questionResult.put("questionTitle", draft.getQuestion().getTitle());
+                questionResult.put("obtainedMarks", response.getObtainedMarks());
+                questionResult.put("totalMarks", response.getTotalMarks());
+                questionResult.put("status", response.getStatus());
+                results.add(questionResult);
+
+                totalScore += response.getObtainedMarks();
+            } catch (Exception e) {
+                Map<String, Object> questionResult = new HashMap<>();
+                questionResult.put("questionId", draft.getQuestion().getId());
+                questionResult.put("questionTitle", draft.getQuestion().getTitle());
+                questionResult.put("error", e.getMessage());
+                results.add(questionResult);
+            }
+        }
+
+        Map<String, Object> finalResult = new HashMap<>();
+        finalResult.put("results", results);
+        finalResult.put("grandTotalScore", getGrandTotalScore(userId));
+        finalResult.put("message", "All questions submitted successfully");
+
+        return finalResult;
+    }
+
+    @Transactional
+    public void updateGrandTotalScore(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Question> allQuestions = questionRepository.findAll();
+        int grandTotal = 0;
+
+        // For each question, get the best submission score
+        for (Question question : allQuestions) {
+            List<Submission> submissions = submissionRepository
+                    .findByUserIdAndQuestionIdOrderByObtainedMarksDesc(userId, question.getId());
+
+            if (!submissions.isEmpty()) {
+                grandTotal += submissions.get(0).getObtainedMarks();
+            }
+        }
+
+        user.setGrandTotalScore(grandTotal);
+        userRepository.save(user);
+    }
+
+    public Integer getGrandTotalScore(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return user.getGrandTotalScore();
     }
 
     private CodeExecutionResponse executeTests(Question question, String userCode, Integer languageId, Long userId, List<TestCase> testCasesToExecute, String actionType) throws Exception {

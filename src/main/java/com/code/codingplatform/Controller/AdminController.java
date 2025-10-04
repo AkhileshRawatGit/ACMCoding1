@@ -1,6 +1,8 @@
 package com.code.codingplatform.Controller;
 
 import com.code.codingplatform.model.Question;
+import com.code.codingplatform.payload.response.LeaderboardEntry;
+import com.code.codingplatform.service.LeaderboardService;
 import com.code.codingplatform.service.QuestionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -11,27 +13,41 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/admin/questions")
-@PreAuthorize("hasAuthority('ADMIN')") // Only ADMIN role can access these endpoints
+@RequestMapping("/api/admin")
+@PreAuthorize("hasAuthority('ADMIN')")
 public class AdminController {
 
     @Autowired
     private QuestionService questionService;
 
-    @PostMapping
+    @Autowired
+    private LeaderboardService leaderboardService;
+
+    @GetMapping("/leaderboard")
+    public ResponseEntity<List<LeaderboardEntry>> getLeaderboard() {
+        try {
+            List<LeaderboardEntry> leaderboard = leaderboardService.getLeaderboard();
+            return new ResponseEntity<>(leaderboard, HttpStatus.OK);
+        } catch (Exception e) {
+            System.err.println("Error getting leaderboard: " + e.getMessage());
+            e.printStackTrace();
+            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PostMapping("/questions")
     public ResponseEntity<Question> createQuestion(@RequestBody Question question) {
         try {
             Question createdQuestion = questionService.createQuestion(question);
             return new ResponseEntity<>(createdQuestion, HttpStatus.CREATED);
         } catch (Exception e) {
-            // Log the exception for debugging
             System.err.println("Error creating question: " + e.getMessage());
             e.printStackTrace();
             return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    @GetMapping
+    @GetMapping("/questions")
     public ResponseEntity<List<Question>> getAllQuestions() {
         try {
             List<Question> questions = questionService.getAllQuestions();
@@ -43,7 +59,7 @@ public class AdminController {
         }
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/questions/{id}")
     public ResponseEntity<Question> getQuestionById(@PathVariable Long id) {
         try {
             Question question = questionService.getQuestionById(id);
@@ -59,7 +75,7 @@ public class AdminController {
         }
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/questions/{id}")
     public ResponseEntity<Question> updateQuestion(@PathVariable Long id, @RequestBody Question question) {
         try {
             Question updatedQuestion = questionService.updateQuestion(id, question);
@@ -75,7 +91,7 @@ public class AdminController {
         }
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/questions/{id}")
     public ResponseEntity<String> deleteQuestion(@PathVariable Long id) {
         try {
             // Check if question exists first

@@ -2,9 +2,11 @@ const API_BASE_URL = "http://localhost:8080/api"
 let currentUser = null
 let currentQuestion = null
 let codeEditor = null
-const CodeMirror = window.CodeMirror // Declare CodeMirror variable
+const CodeMirror = window.CodeMirror
 let filteredQuestions = []
 let allQuestions = []
+
+const codeDrafts = {}
 
 const languageBoilerplates = {
   71: `# Python Solution
@@ -54,6 +56,70 @@ function solve() {
 solve();`,
 }
 
+// Timer and Tab Switch
+let timerInterval
+let timeLeft = 600 // 10 min = 600 sec
+let autoSubmitted = false
+
+function startTimerOnce() {
+  if (currentUser.role !== "PARTICIPANT") return // Only for participants
+  if (timerInterval) return // Already started, so do nothing
+
+  timeLeft = 7200 // 2 hours in seconds
+  updateTimerDisplay()
+
+  timerInterval = setInterval(() => {
+    timeLeft--
+    updateTimerDisplay()
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval)
+      autoSubmitTest("Time's up! Auto-submitting...")
+    }
+  }, 1000)
+}
+
+function startTimer() {
+  if (currentUser.role !== "PARTICIPANT") return // Only for participants
+
+  clearInterval(timerInterval)
+  timeLeft = 7200 // 2 hours in seconds
+  updateTimerDisplay()
+
+  timerInterval = setInterval(() => {
+    timeLeft--
+    updateTimerDisplay()
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval)
+      autoSubmitTest("Time's up! Auto-submitting...")
+    }
+  }, 1000)
+}
+
+function updateTimerDisplay() {
+  const hours = Math.floor(timeLeft / 3600)
+  const minutes = Math.floor((timeLeft % 3600) / 60)
+  const seconds = timeLeft % 60
+
+  const timerEl = document.getElementById("timerDisplay")
+  if (timerEl) {
+    timerEl.textContent = `Time Left: ${hours}:${minutes < 10 ? "0" + minutes : minutes}:${seconds < 10 ? "0" + seconds : seconds}`
+  }
+}
+
+function autoSubmitTest(message) {
+  if (autoSubmitted) return
+  autoSubmitted = true
+  showNotification(message, "info")
+  runCode("submit")
+}
+
+// Tab switch detection
+document.addEventListener("visibilitychange", () => {
+  if (currentUser?.role === "PARTICIPANT" && document.hidden && !autoSubmitted) {
+    autoSubmitTest("Tab switched! Auto-submitting your test...")
+  }
+})
+
 // Initialize app
 document.addEventListener("DOMContentLoaded", () => {
   initializeApp()
@@ -87,43 +153,17 @@ function showNotification(message, type = "success") {
 const jwtToken = () => localStorage.getItem("token")
 
 function initializeApp() {
-  //  const token = localStorage.getItem("token");
-
-  fetch("http://localhost:8080/api/admin/questions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${jwtToken}`, // attach JWT token
-    },
-    body: JSON.stringify({
-      // your payload here
-      title: "Sample Question",
-      description: "This is a test",
-    }),
-  })
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error("Failed: " + response.status)
-      }
-      return response.json()
-    })
-    .then((data) => {
-      console.log("Success:", data)
-    })
-    .catch((err) => {
-      console.error("Error:", err)
-    })
+  const storedUser = localStorage.getItem("user")
+  if (jwtToken() && storedUser) {
+    currentUser = JSON.parse(storedUser)
+    showDashboard()
+  } else {
+    showAuthScreen()
+  }
 }
 
 // The 'user' variable was undeclared. Assuming it should be fetched from localStorage or passed in.
 // For now, we'll check if currentUser is already set or try to load it.
-const storedUser = localStorage.getItem("user")
-if (jwtToken() && storedUser) {
-  currentUser = JSON.parse(storedUser)
-  showDashboard()
-} else {
-  showAuthScreen()
-}
 
 function setupEventListeners() {
   // Auth tabs
@@ -146,14 +186,19 @@ function setupEventListeners() {
   document.getElementById("addParameterBtn")?.addEventListener("click", addParameterRow) // New event listener
 
   // Coding interface
-  document.getElementById("backToQuestions")?.addEventListener("click", showDashboard)
+  document.getElementById("backToQuestions")?.addEventListener("click", backToParticipantDashboard)
   document.getElementById("compileBtn")?.addEventListener("click", () => runCode("compile"))
   document.getElementById("runBtn")?.addEventListener("click", () => runCode("run"))
   document.getElementById("submitBtn")?.addEventListener("click", () => runCode("submit"))
   document.getElementById("languageSelect")?.addEventListener("change", updateEditorMode)
+  // Event listener for submit all
+  document.getElementById("submitAllBtn")?.addEventListener("click", submitAllQuestions)
 
   // Setup search and filter
   setupSearchAndFilter()
+
+  // Start test button on instruction screen
+  document.getElementById("startTestBtn")?.addEventListener("click", startTest)
 }
 
 // Auth Functions
@@ -180,85 +225,79 @@ function switchTab(tab) {
   }
 }
 
-// Wait till DOM is fully loaded
-document.addEventListener("DOMContentLoaded", () => {
-    const loginForm = document.getElementById("loginForm");
-    if (loginForm) {
-        loginForm.addEventListener("submit", handleLogin);
-    }
-});
-
 async function handleLogin(e) {
-    e.preventDefault();
+  e.preventDefault()
+  const username = document.getElementById("loginUsername").value
+  const password = document.getElementById("loginPassword").value
 
-    const username = document.getElementById("loginUsername").value;
-    const password = document.getElementById("loginPassword").value;
-
-    console.log("Attempting login with:", username);
-
-    try {
-        // Relative path ensures it works on Railway and local
-        const response = await fetch("/api/auth/signin", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password }),
-        });
-
-        console.log("Response status:", response.status);
-
-        if (!response.ok) {
-            alert("Server error: " + response.status);
-            return;
-        }
-
-        const data = await response.json();
-
-        if (!data.accessToken) {
-            alert("Login failed: Access token missing from response.");
-            return;
-        }
-
-        // Store token & user info
-        localStorage.setItem("token", data.accessToken);
-        localStorage.setItem("user", JSON.stringify(data.user));
-
-        console.log("Login successful:", data.user);
-        // call your dashboard/show function
-        showDashboard();
-
-    } catch (error) {
-        console.error("Full error:", error);
-        alert("Login failed: " + error.message);
-    }
-}
-
-
-async function handleRegister(e) {
-  e.preventDefault();
-
-  const username = document.getElementById("registerUsername").value;
-  const email = document.getElementById("registerEmail").value;
-  const password = document.getElementById("registerPassword").value;
-  const role = document.getElementById("registerRole").value;
+  console.log("Attempting login with:", username) // Debug line
 
   try {
-    // Relative path ensures it works both locally and on Railway
-    const response = await fetch("/api/auth/signup", {
+    const response = await fetch(`${API_BASE_URL}/auth/signin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    })
+
+    console.log("Response status:", response.status) // Debug line
+    console.log("Response headers:", response.headers) // Debug line
+
+    if (!response.ok) {
+      console.log("Response not OK, status:", response.status)
+      alert("Server error: " + response.status)
+      return
+    }
+
+    const data = await response.json()
+
+    if (!data.accessToken) {
+      alert("Login failed: Access token missing from response.")
+      return
+    }
+    if (!data.user) {
+      alert("Login failed: User data missing from response. Please check backend configuration.")
+      console.error("Login response missing user data:", data)
+      return
+    }
+
+    if (response.ok) {
+      localStorage.setItem("token", data.accessToken)
+      localStorage.setItem("user", JSON.stringify(data.user))
+      currentUser = data.user
+      showDashboard()
+    } else {
+      alert(data.message || "Login failed")
+    }
+  } catch (error) {
+    console.error("Full error:", error) // Debug line
+    alert("Login failed: " + error.message)
+  }
+}
+
+async function handleRegister(e) {
+  e.preventDefault()
+  const username = document.getElementById("registerUsername").value
+  const email = document.getElementById("registerEmail").value
+  const password = document.getElementById("registerPassword").value
+  const role = document.getElementById("registerRole").value
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, email, password, role }),
-    });
+    })
 
-    const data = await response.json();
+    const data = await response.json()
 
     if (response.ok) {
-      alert("Registration successful! Please login.");
-      switchTab("login"); // If you have tab switching logic
+      alert("Registration successful! Please login.")
+      switchTab("login")
     } else {
-      alert(data.message || "Registration failed");
+      alert(data.message || "Registration failed")
     }
   } catch (error) {
-    alert("Registration failed: " + error.message);
+    alert("Registration failed: " + error.message)
   }
 }
 
@@ -276,6 +315,8 @@ function showAuthScreen() {
   document.getElementById("adminDashboard").classList.add("hidden")
   document.getElementById("participantDashboard").classList.add("hidden")
   document.getElementById("codingInterface").classList.add("hidden")
+  document.getElementById("instructionScreen").classList.add("hidden") // Hide instruction screen on logout
+  document.getElementById("submissionSuccessScreen").classList.add("hidden") // Hide submission success screen on logout
 }
 
 function showDashboard() {
@@ -287,15 +328,24 @@ function showDashboard() {
     document.getElementById("adminDashboard").classList.remove("hidden")
     document.getElementById("participantDashboard").classList.add("hidden")
     document.getElementById("codingInterface").classList.add("hidden")
+    document.getElementById("instructionScreen").classList.add("hidden")
     loadAdminQuestions().then(() => {
       setupSearchAndFilter()
     })
+    loadLeaderboard()
   } else {
-    document.getElementById("participantDashboard").classList.remove("hidden")
+    document.getElementById("instructionScreen").classList.remove("hidden")
+    document.getElementById("participantDashboard").classList.add("hidden")
     document.getElementById("adminDashboard").classList.add("hidden")
     document.getElementById("codingInterface").classList.add("hidden")
-    loadParticipantQuestions()
   }
+}
+
+function startTest() {
+  document.getElementById("instructionScreen").classList.add("hidden")
+  document.getElementById("participantDashboard").classList.remove("hidden")
+  loadParticipantQuestions()
+  startTimerOnce()
 }
 
 // Admin Functions
@@ -752,14 +802,16 @@ function displayParticipantQuestions(questions) {
   })
 }
 
-function openCodingInterface(question) {
+async function openCodingInterface(question) {
+  if (currentQuestion && codeEditor) {
+    await saveCurrentDraft()
+  }
+
   currentQuestion = question
 
-  // Hide dashboard, show coding interface
   document.getElementById("participantDashboard").classList.add("hidden")
   document.getElementById("codingInterface").classList.remove("hidden")
 
-  // Populate question details
   document.getElementById("currentQuestionTitle").textContent = question.title
   document.getElementById("currentQuestionDescription").textContent = question.description
 
@@ -771,10 +823,12 @@ function openCodingInterface(question) {
   inputFormatSpan.textContent = `Input: ${question.inputFormatType.replace(/_/g, " ")}`
   inputFormatSpan.className = `px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-800`
 
-  // Initialize code editor
-  initializeCodeEditor()
+  if (!codeEditor) {
+    initializeCodeEditor()
+  }
 
-  // Clear previous results
+  await loadCodeDraft(question.id)
+
   document.getElementById("resultsContainer").innerHTML = '<p class="text-gray-500">Run your code to see results...</p>'
 }
 
@@ -817,9 +871,7 @@ function initializeCodeEditor() {
 
       codeEditor.setOption("mode", modes[languageId] || "text/plain")
 
-      if (codeEditor.getValue().trim() === "" || confirm("Switch language and load boilerplate code?")) {
-        codeEditor.setValue(languageBoilerplates[languageId] || "")
-      }
+      codeEditor.setValue(languageBoilerplates[languageId] || "")
     })
   }
 }
@@ -998,13 +1050,13 @@ function getCppType(type) {
     case "UNORDERED_SET_STRING":
       return "std::unordered_set<std::string>"
     case "QUEUE_INT":
-      return "std::queue<int>"
+      return "std::queue&lt;int&gt;"
     case "STACK_INT":
-      return "std::stack<int>"
+      return "std::stack&lt;int&gt;"
     case "DEQUE_INT":
-      return "std::deque<int>"
+      return "std::deque&lt;int&gt;"
     case "PRIORITY_QUEUE_INT":
-      return "std::priority_queue<int>"
+      return "std::priority_queue&lt;int&gt;"
     case "PAIR_INT_INT":
       return "std::pair<int, int>"
     case "PAIR_STRING_INT":
@@ -1099,7 +1151,7 @@ async function runCode(action) {
     displayResults(result, action)
 
     if (action === "submit" && response.ok) {
-      showSubmitSuccess(result.obtainedMarks, result.totalMarks)
+      showSubmissionSuccessScreen() // Updated: show submission success screen
     }
   } catch (error) {
     showNotification("Error running code: " + error.message, "error")
@@ -1108,16 +1160,30 @@ async function runCode(action) {
   }
 }
 
-function showSubmitSuccess(obtainedMarks, totalMarks) {
-  const indicator = document.getElementById("submitIndicator")
-  const scoreElement = document.getElementById("submitScore")
+// CHANGE: Updated to not show score and add countdown
+function showSubmissionSuccessScreen() {
+  // Hide all other screens
+  document.getElementById("codingInterface").classList.add("hidden")
+  document.getElementById("participantDashboard").classList.add("hidden")
+  document.getElementById("navbar").classList.add("hidden")
 
-  scoreElement.textContent = `Score: ${obtainedMarks}/${totalMarks} marks`
-  indicator.classList.remove("hidden")
+  // Show submission success screen
+  document.getElementById("submissionSuccessScreen").classList.remove("hidden")
 
-  setTimeout(() => {
-    indicator.classList.add("hidden")
-  }, 2000)
+  // Countdown timer
+  let countdown = 3
+  const countdownElement = document.getElementById("logoutCountdown")
+
+  const countdownInterval = setInterval(() => {
+    countdown--
+    if (countdownElement) {
+      countdownElement.textContent = countdown
+    }
+    if (countdown <= 0) {
+      clearInterval(countdownInterval)
+      handleLogout()
+    }
+  }, 1000)
 }
 
 function displayResults(result, action) {
@@ -1547,4 +1613,204 @@ async function editQuestion(id) {
     console.error("Error loading question:", error)
     showNotification("Error loading question", "error")
   }
+}
+
+async function saveCurrentDraft() {
+  if (!currentQuestion || !codeEditor) return
+
+  const code = codeEditor.getValue()
+  const languageId = document.getElementById("languageSelect").value
+
+  try {
+    await fetch(`${API_BASE_URL}/participant/save-draft`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+      body: JSON.stringify({
+        questionId: currentQuestion.id,
+        code: code,
+        languageId: Number.parseInt(languageId),
+      }),
+    })
+  } catch (error) {
+    console.error("Error saving draft:", error)
+  }
+}
+
+async function loadCodeDraft(questionId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/participant/get-draft/${questionId}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    })
+
+    if (response.ok) {
+      const draft = await response.json()
+      if (draft && draft.code) {
+        document.getElementById("languageSelect").value = draft.languageId
+        const languageId = draft.languageId
+        const modes = {
+          71: "python",
+          62: "text/x-java",
+          54: "text/x-c++src",
+          50: "text/x-csrc",
+          63: "javascript",
+        }
+        codeEditor.setOption("mode", modes[languageId] || "text/plain")
+        codeEditor.setValue(draft.code)
+        return
+      }
+    }
+  } catch (error) {
+    console.error("Error loading draft:", error)
+  }
+
+  const defaultLanguage = document.getElementById("languageSelect").value
+  const modes = {
+    71: "python",
+    62: "text/x-java",
+    54: "text/x-c++src",
+    50: "text/x-csrc",
+    63: "javascript",
+  }
+  codeEditor.setOption("mode", modes[defaultLanguage] || "text/plain")
+  codeEditor.setValue(languageBoilerplates[defaultLanguage] || "")
+}
+
+async function loadGrandTotal() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/participant/grand-total`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      const grandTotalElement = document.getElementById("grandTotalScore")
+      if (grandTotalElement) {
+        grandTotalElement.textContent = data.grandTotalScore
+      }
+    }
+  } catch (error) {
+    console.error("Error loading grand total:", error)
+  }
+}
+
+async function submitAllQuestions() {
+  if (!confirm("Are you sure you want to submit all your answers? This will finalize all your submissions.")) {
+    return
+  }
+
+  // Save current draft before submitting all
+  if (currentQuestion && codeEditor) {
+    await saveCurrentDraft()
+  }
+
+  showLoading(true)
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/participant/submit-all`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    })
+
+    const result = await response.json()
+
+    if (response.ok) {
+      showSubmissionSuccessScreen()
+    } else {
+      showNotification("Error submitting all questions: " + (result.error || "Unknown error"), "error")
+    }
+  } catch (error) {
+    showNotification("Error submitting all questions: " + error.message, "error")
+  } finally {
+    showLoading(false)
+  }
+}
+
+async function loadLeaderboard() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/leaderboard`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    })
+
+    const leaderboard = await response.json()
+    displayLeaderboard(leaderboard)
+  } catch (error) {
+    console.error("Error loading leaderboard:", error)
+  }
+}
+
+function displayLeaderboard(leaderboard) {
+  const container = document.getElementById("leaderboardTable")
+  if (!container) return
+
+  container.innerHTML = ""
+
+  if (leaderboard.length === 0) {
+    container.innerHTML = `
+      <tr>
+        <td colspan="4" class="text-center py-8 text-gray-500">
+          <i class="fas fa-trophy text-4xl mb-2"></i>
+          <p>No participants yet</p>
+        </td>
+      </tr>
+    `
+    return
+  }
+
+  leaderboard.forEach((entry) => {
+    const row = document.createElement("tr")
+    row.className = "hover:bg-gray-50 transition-colors duration-200"
+
+    const rankClass =
+      entry.rank === 1
+        ? "text-yellow-600 font-bold"
+        : entry.rank === 2
+          ? "text-gray-500 font-bold"
+          : entry.rank === 3
+            ? "text-orange-600 font-bold"
+            : ""
+
+    const rankIcon = entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : ""
+
+    row.innerHTML = `
+      <td class="px-6 py-4 whitespace-nowrap">
+        <span class="${rankClass} text-lg">${rankIcon} ${entry.rank}</span>
+      </td>
+      <td class="px-6 py-4 whitespace-nowrap">
+        <div class="flex items-center">
+          <div class="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center mr-3">
+            <i class="fas fa-user text-indigo-600 text-sm"></i>
+          </div>
+          <div>
+            <div class="text-sm font-medium text-gray-900">${entry.username}</div>
+            <div class="text-sm text-gray-500">${entry.email}</div>
+          </div>
+        </div>
+      </td>
+      <td class="px-6 py-4 whitespace-nowrap">
+        <span class="px-3 py-1 inline-flex text-lg leading-5 font-bold rounded-full bg-green-100 text-green-800">
+          ${entry.grandTotalScore} points
+        </span>
+      </td>
+    `
+    container.appendChild(row)
+  })
+}
+
+async function backToParticipantDashboard() {
+  // Save current draft before going back
+  if (currentQuestion && codeEditor) {
+    await saveCurrentDraft()
+  }
+
+  document.getElementById("codingInterface").classList.add("hidden")
+  document.getElementById("participantDashboard").classList.remove("hidden")
+  currentQuestion = null
 }

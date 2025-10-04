@@ -32,13 +32,17 @@ public class User {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Role role; // Correctly references the external Role enum
+    private Role role;
+
+    @Column(name = "grand_total_score", nullable = false)
+    private Integer grandTotalScore = 0;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     public User() {
         this.createdAt = LocalDateTime.now();
+        this.grandTotalScore = 0;
     }
 
     public User(String username, String email, String password, Role role) {
@@ -47,6 +51,7 @@ public class User {
         this.password = password;
         this.role = role;
         this.createdAt = LocalDateTime.now();
+        this.grandTotalScore = 0;
     }
 
     // Getters and Setters
@@ -96,5 +101,13 @@ public class User {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Integer getGrandTotalScore() {
+        return grandTotalScore;
+    }
+
+    public void setGrandTotalScore(Integer grandTotalScore) {
+        this.grandTotalScore = grandTotalScore;
     }
 }

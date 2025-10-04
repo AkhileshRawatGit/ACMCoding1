@@ -2,7 +2,10 @@ package com.code.codingplatform.Controller;
 
 import com.code.codingplatform.model.Question;
 import com.code.codingplatform.payload.request.CodeExecutionRequest;
+import com.code.codingplatform.payload.request.SaveCodeDraftRequest;
+import com.code.codingplatform.payload.response.CodeDraftResponse;
 import com.code.codingplatform.payload.response.CodeExecutionResponse;
+import com.code.codingplatform.service.CodeDraftService;
 import com.code.codingplatform.service.QuestionService;
 import com.code.codingplatform.service.SubmissionService;
 import com.code.codingplatform.security.UserPrincipal;
@@ -14,10 +17,11 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/participant")
-@PreAuthorize("hasAuthority('PARTICIPANT')") // Only PARTICIPANT role can access these endpoints
+@PreAuthorize("hasAuthority('PARTICIPANT')")
 public class ParticipantController {
 
     @Autowired
@@ -25,6 +29,9 @@ public class ParticipantController {
 
     @Autowired
     private SubmissionService submissionService;
+
+    @Autowired
+    private CodeDraftService codeDraftService;
 
     @GetMapping("/questions")
     public ResponseEntity<List<Question>> getAllQuestionsForParticipant() {
@@ -35,6 +42,32 @@ public class ParticipantController {
             System.err.println("Error getting all questions for participant: " + e.getMessage());
             e.printStackTrace();
             return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PostMapping("/save-draft")
+    public ResponseEntity<String> saveCodeDraft(@AuthenticationPrincipal UserPrincipal currentUser,
+                                                @RequestBody SaveCodeDraftRequest request) {
+        try {
+            codeDraftService.saveCodeDraft(currentUser.getId(), request.getQuestionId(),
+                    request.getCode(), request.getLanguageId());
+            return new ResponseEntity<>("Draft saved successfully", HttpStatus.OK);
+        } catch (Exception e) {
+            System.err.println("Error saving code draft: " + e.getMessage());
+            e.printStackTrace();
+            return new ResponseEntity<>("Error saving draft: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("/get-draft/{questionId}")
+    public ResponseEntity<CodeDraftResponse> getCodeDraft(@AuthenticationPrincipal UserPrincipal currentUser,
+                                                          @PathVariable Long questionId) {
+        try {
+            CodeDraftResponse draft = codeDraftService.getCodeDraft(currentUser.getId(), questionId);
+            return new ResponseEntity<>(draft, HttpStatus.OK);
+        } catch (Exception e) {
+            System.err.println("Error getting code draft: " + e.getMessage());
+            return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
         }
     }
 
@@ -74,6 +107,29 @@ public class ParticipantController {
             System.err.println("Error submitting code: " + e.getMessage());
             e.printStackTrace();
             return new ResponseEntity<>(new CodeExecutionResponse("Error submitting code: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PostMapping("/submit-all")
+    public ResponseEntity<Map<String, Object>> submitAll(@AuthenticationPrincipal UserPrincipal currentUser) {
+        try {
+            Map<String, Object> result = submissionService.submitAllQuestions(currentUser.getId());
+            return new ResponseEntity<>(result, HttpStatus.OK);
+        } catch (Exception e) {
+            System.err.println("Error submitting all: " + e.getMessage());
+            e.printStackTrace();
+            return new ResponseEntity<>(Map.of("error", "Error submitting all: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("/grand-total")
+    public ResponseEntity<Map<String, Integer>> getGrandTotal(@AuthenticationPrincipal UserPrincipal currentUser) {
+        try {
+            Integer grandTotal = submissionService.getGrandTotalScore(currentUser.getId());
+            return new ResponseEntity<>(Map.of("grandTotalScore", grandTotal), HttpStatus.OK);
+        } catch (Exception e) {
+            System.err.println("Error getting grand total: " + e.getMessage());
+            return new ResponseEntity<>(Map.of("grandTotalScore", 0), HttpStatus.OK);
         }
     }
 }
