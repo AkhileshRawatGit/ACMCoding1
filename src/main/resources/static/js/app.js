@@ -234,7 +234,7 @@ async function handleLogin(e) {
   console.log("Attempting login with:", username) // Debug line
 
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/signin`, {
+    const response = await originalFetch(`${API_BASE_URL}/auth/signin`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
@@ -244,34 +244,35 @@ async function handleLogin(e) {
     console.log("Response headers:", response.headers) // Debug line
 
     if (!response.ok) {
-      console.log("Response not OK, status:", response.status)
-      alert("Server error: " + response.status)
+      const errorData = await response.json().catch(() => ({ message: "Login failed" }))
+      showNotification(errorData.message || "Login failed. Please check your credentials.", "error")
       return
     }
 
     const data = await response.json()
 
     if (!data.accessToken) {
-      alert("Login failed: Access token missing from response.")
+      showNotification("Login failed: Access token missing from response.", "error")
       return
     }
     if (!data.user) {
-      alert("Login failed: User data missing from response. Please check backend configuration.")
+      showNotification("Login failed: User data missing from response.", "error")
       console.error("Login response missing user data:", data)
       return
     }
 
-    if (response.ok) {
-      localStorage.setItem("token", data.accessToken)
-      localStorage.setItem("user", JSON.stringify(data.user))
-      currentUser = data.user
+    localStorage.clear()
+    localStorage.setItem("token", data.accessToken)
+    localStorage.setItem("user", JSON.stringify(data.user))
+    currentUser = data.user
+
+    showNotification(`Welcome back, ${data.user.username}!`, "success")
+    setTimeout(() => {
       showDashboard()
-    } else {
-      alert(data.message || "Login failed")
-    }
+    }, 500)
   } catch (error) {
     console.error("Full error:", error) // Debug line
-    alert("Login failed: " + error.message)
+    showNotification("Login failed: " + error.message, "error")
   }
 }
 
@@ -306,6 +307,19 @@ function handleLogout() {
   localStorage.removeItem("token")
   localStorage.removeItem("user")
   currentUser = null
+  currentQuestion = null
+
+  // Clear timer
+  if (timerInterval) {
+    clearInterval(timerInterval)
+    timerInterval = null
+  }
+
+  // Reset code editor
+  if (codeEditor) {
+    codeEditor.setValue("")
+  }
+
   showAuthScreen()
 }
 
@@ -352,14 +366,19 @@ function startTest() {
 // Admin Functions
 async function loadAdminQuestions() {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/questions`, {
+    const response = await originalFetch(`${API_BASE_URL}/admin/questions`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
+
+    if (!response.ok) {
+      throw new Error("Failed to load questions")
+    }
 
     const questions = await response.json()
     displayAdminQuestions(questions)
   } catch (error) {
     console.error("Error loading questions:", error)
+    showNotification("Error loading questions. Please try again.", "error")
   }
 }
 
@@ -727,14 +746,19 @@ async function deleteQuestion(questionId) {
 // Participant Functions
 async function loadParticipantQuestions() {
   try {
-    const response = await fetch(`${API_BASE_URL}/participant/questions`, {
+    const response = await originalFetch(`${API_BASE_URL}/participant/questions`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
+
+    if (!response.ok) {
+      throw new Error("Failed to load questions")
+    }
 
     const questions = await response.json()
     displayParticipantQuestions(questions)
   } catch (error) {
     console.error("Error loading questions:", error)
+    showNotification("Error loading questions. Please try again.", "error")
   }
 }
 
@@ -1814,4 +1838,20 @@ async function backToParticipantDashboard() {
   document.getElementById("codingInterface").classList.add("hidden")
   document.getElementById("participantDashboard").classList.remove("hidden")
   currentQuestion = null
+}
+
+const originalFetch = window.fetch
+window.fetch = async (...args) => {
+  const response = await originalFetch(...args)
+
+  // If we get a 401 and we're not on the auth screen, logout automatically
+  if (response.status === 401 && currentUser) {
+    console.log("[v0] 401 error detected, logging out automatically")
+    showNotification("Session expired. Please login again.", "error")
+    setTimeout(() => {
+      handleLogout()
+    }, 1500)
+  }
+
+  return response
 }
