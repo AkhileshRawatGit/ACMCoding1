@@ -231,17 +231,17 @@ async function handleLogin(e) {
   const username = document.getElementById("loginUsername").value
   const password = document.getElementById("loginPassword").value
 
-  console.log("Attempting login with:", username) // Debug line
+  console.log("[v0] Attempting login with:", username)
+  showLoading(true)
 
   try {
-    const response = await originalFetch(`${API_BASE_URL}/auth/signin`, {
+    const response = await fetch(`${API_BASE_URL}/auth/signin`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     })
 
-    console.log("Response status:", response.status) // Debug line
-    console.log("Response headers:", response.headers) // Debug line
+    console.log("[v0] Response status:", response.status)
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: "Login failed" }))
@@ -250,6 +250,7 @@ async function handleLogin(e) {
     }
 
     const data = await response.json()
+    console.log("[v0] Login response data:", data)
 
     if (!data.accessToken) {
       showNotification("Login failed: Access token missing from response.", "error")
@@ -257,7 +258,7 @@ async function handleLogin(e) {
     }
     if (!data.user) {
       showNotification("Login failed: User data missing from response.", "error")
-      console.error("Login response missing user data:", data)
+      console.error("[v0] Login response missing user data:", data)
       return
     }
 
@@ -266,13 +267,17 @@ async function handleLogin(e) {
     localStorage.setItem("user", JSON.stringify(data.user))
     currentUser = data.user
 
+    console.log("[v0] Login successful, user role:", currentUser.role)
     showNotification(`Welcome back, ${data.user.username}!`, "success")
+
     setTimeout(() => {
       showDashboard()
     }, 500)
   } catch (error) {
-    console.error("Full error:", error) // Debug line
+    console.error("[v0] Login error:", error)
     showNotification("Login failed: " + error.message, "error")
+  } finally {
+    showLoading(false)
   }
 }
 
@@ -304,6 +309,8 @@ async function handleRegister(e) {
 }
 
 function handleLogout() {
+  console.log("[v0] Logging out user")
+
   localStorage.removeItem("token")
   localStorage.removeItem("user")
   currentUser = null
@@ -314,6 +321,8 @@ function handleLogout() {
     clearInterval(timerInterval)
     timerInterval = null
   }
+  timeLeft = 7200
+  autoSubmitted = false
 
   // Reset code editor
   if (codeEditor) {
@@ -321,6 +330,7 @@ function handleLogout() {
   }
 
   showAuthScreen()
+  showNotification("Logged out successfully", "success")
 }
 
 // Screen Management
@@ -366,7 +376,7 @@ function startTest() {
 // Admin Functions
 async function loadAdminQuestions() {
   try {
-    const response = await originalFetch(`${API_BASE_URL}/admin/questions`, {
+    const response = await fetch(`${API_BASE_URL}/admin/questions`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
 
@@ -745,20 +755,33 @@ async function deleteQuestion(questionId) {
 
 // Participant Functions
 async function loadParticipantQuestions() {
+  console.log("[v0] Loading participant questions")
+  showLoading(true)
+
   try {
-    const response = await originalFetch(`${API_BASE_URL}/participant/questions`, {
+    const response = await fetch(`${API_BASE_URL}/participant/questions`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
 
+    console.log("[v0] Questions response status:", response.status)
+
     if (!response.ok) {
-      throw new Error("Failed to load questions")
+      throw new Error(`Failed to load questions: ${response.status}`)
     }
 
     const questions = await response.json()
+    console.log("[v0] Loaded questions:", questions.length)
+
+    if (questions.length === 0) {
+      showNotification("No questions available yet. Please contact admin.", "info")
+    }
+
     displayParticipantQuestions(questions)
   } catch (error) {
-    console.error("Error loading questions:", error)
-    showNotification("Error loading questions. Please try again.", "error")
+    console.error("[v0] Error loading questions:", error)
+    showNotification("Error loading questions: " + error.message, "error")
+  } finally {
+    showLoading(false)
   }
 }
 
@@ -1842,16 +1865,48 @@ async function backToParticipantDashboard() {
 
 const originalFetch = window.fetch
 window.fetch = async (...args) => {
-  const response = await originalFetch(...args)
+  const retries = 3
+  let delay = 2000 // Start with 2 second delay
 
-  // If we get a 401 and we're not on the auth screen, logout automatically
-  if (response.status === 401 && currentUser) {
-    console.log("[v0] 401 error detected, logging out automatically")
-    showNotification("Session expired. Please login again.", "error")
-    setTimeout(() => {
-      handleLogout()
-    }, 1500)
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await originalFetch(...args)
+
+      // If we get a 401 and we're not on the auth screen, logout automatically
+      if (response.status === 401 && currentUser) {
+        console.log("[v0] 401 error detected, logging out automatically")
+        showNotification("Session expired. Please login again.", "error")
+        setTimeout(() => {
+          handleLogout()
+        }, 1500)
+        return response
+      }
+
+      // If successful, return the response
+      if (response.ok || response.status === 400 || response.status === 401 || response.status === 403) {
+        return response
+      }
+
+      // If server error and we have retries left, try again
+      if (response.status >= 500 && i < retries - 1) {
+        console.log(`[v0] Server error ${response.status}, retrying in ${delay}ms... (attempt ${i + 1}/${retries})`)
+        showNotification(`Server is waking up, please wait... (${i + 1}/${retries})`, "info")
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        delay *= 2 // Exponential backoff
+        continue
+      }
+
+      return response
+    } catch (error) {
+      // Network error - server might be waking up
+      if (i < retries - 1) {
+        console.log(`[v0] Network error, retrying in ${delay}ms... (attempt ${i + 1}/${retries})`)
+        showNotification(`Connecting to server... (${i + 1}/${retries})`, "info")
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        delay *= 2 // Exponential backoff
+        continue
+      }
+      throw error
+    }
   }
-
-  return response
 }
