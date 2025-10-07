@@ -231,7 +231,7 @@ async function handleLogin(e) {
   const username = document.getElementById("loginUsername").value
   const password = document.getElementById("loginPassword").value
 
-  console.log("[v0] Attempting login with:", username)
+  console.log("[v0] Attempting login")
   showLoading(true)
 
   try {
@@ -241,7 +241,7 @@ async function handleLogin(e) {
       body: JSON.stringify({ username, password }),
     })
 
-    console.log("[v0] Response status:", response.status)
+    console.log("[v0] Login response status:", response.status)
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: "Login failed" }))
@@ -250,15 +250,9 @@ async function handleLogin(e) {
     }
 
     const data = await response.json()
-    console.log("[v0] Login response data:", data)
 
-    if (!data.accessToken) {
-      showNotification("Login failed: Access token missing from response.", "error")
-      return
-    }
-    if (!data.user) {
-      showNotification("Login failed: User data missing from response.", "error")
-      console.error("[v0] Login response missing user data:", data)
+    if (!data.accessToken || !data.user) {
+      showNotification("Login failed: Invalid response from server", "error")
       return
     }
 
@@ -267,12 +261,10 @@ async function handleLogin(e) {
     localStorage.setItem("user", JSON.stringify(data.user))
     currentUser = data.user
 
-    console.log("[v0] Login successful, user role:", currentUser.role)
+    console.log("[v0] Login successful, role:", currentUser.role)
     showNotification(`Welcome back, ${data.user.username}!`, "success")
 
-    setTimeout(() => {
-      showDashboard()
-    }, 500)
+    setTimeout(() => showDashboard(), 500)
   } catch (error) {
     console.error("[v0] Login error:", error)
     showNotification("Login failed: " + error.message, "error")
@@ -309,12 +301,16 @@ async function handleRegister(e) {
 }
 
 function handleLogout() {
-  console.log("[v0] Logging out user")
+  console.log("[v0] Logging out")
 
-  localStorage.removeItem("token")
-  localStorage.removeItem("user")
+  // Clear all storage
+  localStorage.clear()
+
+  // Reset all state
   currentUser = null
   currentQuestion = null
+  allQuestions = []
+  filteredQuestions = []
 
   // Clear timer
   if (timerInterval) {
@@ -329,6 +325,7 @@ function handleLogout() {
     codeEditor.setValue("")
   }
 
+  // Show auth screen
   showAuthScreen()
   showNotification("Logged out successfully", "success")
 }
@@ -349,7 +346,11 @@ function showDashboard() {
   document.getElementById("navbar").classList.remove("hidden")
   document.getElementById("userInfo").textContent = `${currentUser.username} (${currentUser.role})`
 
+  const timerDisplay = document.getElementById("timerDisplay")
   if (currentUser.role === "ADMIN") {
+    if (timerDisplay) {
+      timerDisplay.classList.add("hidden")
+    }
     document.getElementById("adminDashboard").classList.remove("hidden")
     document.getElementById("participantDashboard").classList.add("hidden")
     document.getElementById("codingInterface").classList.add("hidden")
@@ -359,6 +360,9 @@ function showDashboard() {
     })
     loadLeaderboard()
   } else {
+    if (timerDisplay) {
+      timerDisplay.classList.remove("hidden")
+    }
     document.getElementById("instructionScreen").classList.remove("hidden")
     document.getElementById("participantDashboard").classList.add("hidden")
     document.getElementById("adminDashboard").classList.add("hidden")
@@ -766,6 +770,11 @@ async function loadParticipantQuestions() {
     console.log("[v0] Questions response status:", response.status)
 
     if (!response.ok) {
+      if (response.status === 401) {
+        showNotification("Session expired. Please login again.", "error")
+        setTimeout(() => handleLogout(), 1500)
+        return
+      }
       throw new Error(`Failed to load questions: ${response.status}`)
     }
 
@@ -1863,49 +1872,106 @@ async function backToParticipantDashboard() {
   currentQuestion = null
 }
 
+let serverWaking = false
+
+async function checkServerHealth() {
+  try {
+    const response = await originalFetch(`${API_BASE_URL}/auth/health`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    })
+    return response.ok
+  } catch (error) {
+    return false
+  }
+}
+
+async function waitForServer() {
+  if (serverWaking) return
+
+  serverWaking = true
+  showNotification("Server is starting up, please wait...", "info")
+  showLoading(true)
+
+  let attempts = 0
+  const maxAttempts = 30 // 30 attempts = 60 seconds max
+
+  while (attempts < maxAttempts) {
+    const isHealthy = await checkServerHealth()
+    if (isHealthy) {
+      serverWaking = false
+      showLoading(false)
+      showNotification("Server is ready!", "success")
+      return true
+    }
+
+    attempts++
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
+    if (attempts % 5 === 0) {
+      showNotification(`Still waiting for server... (${attempts * 2}s)`, "info")
+    }
+  }
+
+  serverWaking = false
+  showLoading(false)
+  showNotification("Server is taking too long to respond. Please try again.", "error")
+  return false
+}
+
 const originalFetch = window.fetch
 window.fetch = async (...args) => {
-  const retries = 3
-  let delay = 2000 // Start with 2 second delay
+  const maxRetries = 3
+  let delay = 2000
 
-  for (let i = 0; i < retries; i++) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const response = await originalFetch(...args)
 
-      // If we get a 401 and we're not on the auth screen, logout automatically
+      // Handle 401 - session expired
       if (response.status === 401 && currentUser) {
-        console.log("[v0] 401 error detected, logging out automatically")
+        console.log("[v0] 401 error - session expired")
         showNotification("Session expired. Please login again.", "error")
-        setTimeout(() => {
-          handleLogout()
-        }, 1500)
+        setTimeout(() => handleLogout(), 1500)
         return response
       }
 
-      // If successful, return the response
-      if (response.ok || response.status === 400 || response.status === 401 || response.status === 403) {
+      // Success or client error (don't retry)
+      if (response.ok || (response.status >= 400 && response.status < 500)) {
         return response
       }
 
-      // If server error and we have retries left, try again
-      if (response.status >= 500 && i < retries - 1) {
-        console.log(`[v0] Server error ${response.status}, retrying in ${delay}ms... (attempt ${i + 1}/${retries})`)
-        showNotification(`Server is waking up, please wait... (${i + 1}/${retries})`, "info")
+      // Server error - retry
+      if (response.status >= 500 && attempt < maxRetries - 1) {
+        console.log(`[v0] Server error ${response.status}, retrying...`)
+        showNotification(`Server error, retrying... (${attempt + 1}/${maxRetries})`, "info")
         await new Promise((resolve) => setTimeout(resolve, delay))
-        delay *= 2 // Exponential backoff
+        delay *= 2
         continue
       }
 
       return response
     } catch (error) {
-      // Network error - server might be waking up
-      if (i < retries - 1) {
-        console.log(`[v0] Network error, retrying in ${delay}ms... (attempt ${i + 1}/${retries})`)
-        showNotification(`Connecting to server... (${i + 1}/${retries})`, "info")
+      // Network error - server might be asleep
+      if (attempt < maxRetries - 1) {
+        console.log(`[v0] Network error, server might be waking up...`)
+
+        // On first network error, check if server is waking up
+        if (attempt === 0) {
+          const serverReady = await waitForServer()
+          if (!serverReady) {
+            throw new Error("Server is not responding. Please try again later.")
+          }
+          // Try the request again after server is ready
+          continue
+        }
+
+        showNotification(`Retrying connection... (${attempt + 1}/${maxRetries})`, "info")
         await new Promise((resolve) => setTimeout(resolve, delay))
-        delay *= 2 // Exponential backoff
+        delay *= 2
         continue
       }
+
       throw error
     }
   }

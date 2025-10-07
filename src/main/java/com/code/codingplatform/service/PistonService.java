@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
@@ -18,10 +19,33 @@ public class PistonService {
     @Value("${piston.api.url:https://emkc.org/api/v2/piston}")
     private String pistonApiUrl;
 
+    // Configurable rate-limit controls with safe defaults
+    @Value("${piston.rate.min-interval-ms:220}")
+    private long minIntervalMs;
+
+    @Value("${piston.rate.max-retries:4}")
+    private int maxRetries;
+
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final Map<String, String> languageVersionCache = new HashMap<>();
+
+    // Simple per-instance throttle
+    private final Object rateLock = new Object();
+    private volatile long lastCallAt = 0L;
+
+    private void respectRateLimit() {
+        synchronized (rateLock) {
+            long now = System.currentTimeMillis();
+            long elapsed = now - lastCallAt;
+            long wait = minIntervalMs - elapsed;
+            if (wait > 0) {
+                try { Thread.sleep(wait); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+            }
+            lastCallAt = System.currentTimeMillis();
+        }
+    }
 
     // Judge0 language ID to Piston language mapping
     public String mapJudge0LanguageIdToPiston(int languageId) {
@@ -62,6 +86,8 @@ public class PistonService {
         if (languageVersionCache.containsKey(language)) {
             return languageVersionCache.get(language);
         }
+        // Also respect rate-limit for runtimes call
+        respectRateLimit();
         String url = pistonApiUrl + "/runtimes";
         ResponseEntity<JsonNode> resp = restTemplate.exchange(url, HttpMethod.GET, null, JsonNode.class);
         if (resp.getStatusCode().is2xxSuccessful() && resp.getBody() != null && resp.getBody().isArray()) {
@@ -103,17 +129,31 @@ public class PistonService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<String> entity = new HttpEntity<>(body.toString(), headers);
 
-        ResponseEntity<JsonNode> resp = restTemplate.exchange(
-                pistonApiUrl + "/execute",
-                HttpMethod.POST,
-                entity,
-                JsonNode.class
-        );
-
-        if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) {
-            throw new RuntimeException("Piston /execute failed with status: " + resp.getStatusCode());
+        // Rate-limit + retry with backoff on 429
+        int attempt = 0;
+        while (true) {
+            attempt++;
+            respectRateLimit();
+            try {
+                ResponseEntity<JsonNode> resp = restTemplate.exchange(
+                        pistonApiUrl + "/execute",
+                        HttpMethod.POST,
+                        entity,
+                        JsonNode.class
+                );
+                if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) {
+                    throw new RuntimeException("Piston /execute failed with status: " + resp.getStatusCode());
+                }
+                return resp.getBody();
+            } catch (HttpClientErrorException e) {
+                if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS && attempt <= maxRetries) {
+                    // Exponential-ish backoff: minInterval * attempt
+                    long backoff = Math.max(minIntervalMs, minIntervalMs * attempt);
+                    try { Thread.sleep(backoff); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                    continue;
+                }
+                throw e;
+            }
         }
-
-        return resp.getBody();
     }
 }
