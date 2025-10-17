@@ -61,11 +61,13 @@ solve();`,
 let timerInterval
 let timeLeft = 600 // 10 min = 600 sec
 let autoSubmitted = false
+let isTestActive = false // Track if test has started
 
 function startTimerOnce() {
   if (currentUser.role !== "PARTICIPANT") return // Only for participants
   if (timerInterval) return // Already started, so do nothing
 
+  isTestActive = true // Mark test as active
   timeLeft = 7200 // 2 hours in seconds
   updateTimerDisplay()
 
@@ -83,6 +85,7 @@ function startTimer() {
   if (currentUser.role !== "PARTICIPANT") return // Only for participants
 
   clearInterval(timerInterval)
+  isTestActive = true // Mark test as active
   timeLeft = 7200 // 2 hours in seconds
   updateTimerDisplay()
 
@@ -107,17 +110,81 @@ function updateTimerDisplay() {
   }
 }
 
-function autoSubmitTest(message) {
+async function autoSubmitTest(message) {
   if (autoSubmitted) return
   autoSubmitted = true
+
+  console.log("[v0] Auto-submit triggered:", message)
   showNotification(message, "info")
-  runCode("submit")
+
+  // Save current draft before submitting all
+  if (currentQuestion && codeEditor) {
+    try {
+      await saveCurrentDraft()
+      console.log("[v0] Current draft saved")
+    } catch (error) {
+      console.error("[v0] Error saving draft:", error)
+    }
+  }
+
+  // Submit all questions
+  try {
+    showLoading(true)
+    const response = await fetch(`${API_BASE_URL}/participant/submit-all`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    })
+
+    if (response.ok) {
+      console.log("[v0] All questions submitted successfully")
+      showSubmissionSuccessScreen()
+    } else {
+      console.error("[v0] Error submitting all questions")
+      showNotification("Error submitting all questions", "error")
+      // Still logout after error
+      setTimeout(() => handleLogout(), 2000)
+    }
+  } catch (error) {
+    console.error("[v0] Error in auto-submit:", error)
+    showNotification("Error submitting: " + error.message, "error")
+    // Still logout after error
+    setTimeout(() => handleLogout(), 2000)
+  } finally {
+    showLoading(false)
+  }
 }
 
-// Tab switch detection
 document.addEventListener("visibilitychange", () => {
-  if (currentUser?.role === "PARTICIPANT" && document.hidden && !autoSubmitted) {
+  if (currentUser?.role === "PARTICIPANT" && isTestActive && document.hidden && !autoSubmitted) {
+    console.log("[v0] Tab/window hidden - triggering auto-submit")
     autoSubmitTest("Tab switched! Auto-submitting your test...")
+  }
+})
+
+window.addEventListener("blur", () => {
+  if (currentUser?.role === "PARTICIPANT" && isTestActive && !autoSubmitted) {
+    console.log("[v0] Window lost focus - triggering auto-submit")
+    autoSubmitTest("Window lost focus! Auto-submitting your test...")
+  }
+})
+
+window.addEventListener("beforeunload", (event) => {
+  if (currentUser?.role === "PARTICIPANT" && isTestActive && !autoSubmitted) {
+    console.log("[v0] Page unload detected - preventing navigation")
+    event.preventDefault()
+    event.returnValue = ""
+    return ""
+  }
+})
+
+document.addEventListener("contextmenu", (event) => {
+  if (currentUser?.role === "PARTICIPANT" && isTestActive) {
+    event.preventDefault()
+    showNotification("Right-click is disabled during the test", "error")
+    return false
   }
 })
 
@@ -302,6 +369,8 @@ async function handleRegister(e) {
 
 function handleLogout() {
   console.log("[v0] Logging out")
+
+  isTestActive = false
 
   // Clear all storage
   localStorage.clear()
@@ -1217,7 +1286,7 @@ async function runCode(action) {
   }
 }
 
-// CHANGE: Updated to not show score and add countdown
+// Updated to not show score and add countdown
 function showSubmissionSuccessScreen() {
   // Hide all other screens
   document.getElementById("codingInterface").classList.add("hidden")
@@ -1226,6 +1295,9 @@ function showSubmissionSuccessScreen() {
 
   // Show submission success screen
   document.getElementById("submissionSuccessScreen").classList.remove("hidden")
+
+  // Mark test as inactive
+  isTestActive = false
 
   // Countdown timer
   let countdown = 3
