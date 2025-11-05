@@ -46,16 +46,16 @@ public class ParticipantController {
     }
 
     @PostMapping("/save-draft")
-    public ResponseEntity<String> saveCodeDraft(@AuthenticationPrincipal UserPrincipal currentUser,
-                                                @RequestBody SaveCodeDraftRequest request) {
+    public ResponseEntity<Map<String, String>> saveCodeDraft(@AuthenticationPrincipal UserPrincipal currentUser,
+                                                             @RequestBody SaveCodeDraftRequest request) {
         try {
             codeDraftService.saveCodeDraft(currentUser.getId(), request.getQuestionId(),
                     request.getCode(), request.getLanguageId());
-            return new ResponseEntity<>("Draft saved successfully", HttpStatus.OK);
+            return new ResponseEntity<>(Map.of("message", "Draft saved successfully"), HttpStatus.OK);
         } catch (Exception e) {
             System.err.println("Error saving code draft: " + e.getMessage());
             e.printStackTrace();
-            return new ResponseEntity<>("Error saving draft: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(Map.of("message", "Error saving draft: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

@@ -10,7 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -148,6 +150,96 @@ public class PistonService {
             } catch (HttpClientErrorException e) {
                 if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS && attempt <= maxRetries) {
                     // Exponential-ish backoff: minInterval * attempt
+                    long backoff = Math.max(minIntervalMs, minIntervalMs * attempt);
+                    try { Thread.sleep(backoff); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                    continue;
+                }
+                throw e;
+            }
+        }
+    }
+
+    public List<JsonNode> executeCodeBatch(String code, String language, List<String> inputs, Integer runTimeoutMs) throws Exception {
+        List<JsonNode> results = new ArrayList<>();
+        List<Thread> threads = new ArrayList<>();
+        List<Exception> exceptions = new ArrayList<>();
+        Object exceptionLock = new Object();
+
+        for (String input : inputs) {
+            Thread thread = new Thread(() -> {
+                try {
+                    JsonNode result = executeCode(code, language, input, runTimeoutMs);
+                    synchronized (results) {
+                        results.add(result);
+                    }
+                } catch (Exception e) {
+                    synchronized (exceptionLock) {
+                        exceptions.add(e);
+                    }
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+
+        // Wait for all threads to complete
+        for (Thread thread : threads) {
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        // Check if any exceptions occurred
+        if (!exceptions.isEmpty()) {
+            throw exceptions.get(0);
+        }
+
+        return results;
+    }
+
+    public JsonNode executeCodeOptimized(String code, String language, String stdin, Integer runTimeoutMs) throws Exception {
+        String version = getLatestVersion(language);
+        String fileName = chooseFileName(language);
+
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("language", language);
+        body.put("version", version);
+        body.put("stdin", stdin != null ? stdin : "");
+        body.put("compile_timeout", 5000); // Reduced from 10s to 5s
+        body.put("run_timeout", Math.min(runTimeoutMs != null ? runTimeoutMs : 3000, 2000)); // Cap at 2s for faster feedback
+        body.put("compile_memory_limit", -1);
+        body.put("run_memory_limit", -1);
+
+        ArrayNode files = objectMapper.createArrayNode();
+        ObjectNode mainFile = objectMapper.createObjectNode();
+        mainFile.put("name", fileName);
+        mainFile.put("content", code != null ? code : "");
+        files.add(mainFile);
+        body.set("files", files);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> entity = new HttpEntity<>(body.toString(), headers);
+
+        int attempt = 0;
+        while (true) {
+            attempt++;
+            respectRateLimit();
+            try {
+                ResponseEntity<JsonNode> resp = restTemplate.exchange(
+                        pistonApiUrl + "/execute",
+                        HttpMethod.POST,
+                        entity,
+                        JsonNode.class
+                );
+                if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) {
+                    throw new RuntimeException("Piston /execute failed with status: " + resp.getStatusCode());
+                }
+                return resp.getBody();
+            } catch (HttpClientErrorException e) {
+                if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS && attempt <= maxRetries) {
                     long backoff = Math.max(minIntervalMs, minIntervalMs * attempt);
                     try { Thread.sleep(backoff); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
                     continue;

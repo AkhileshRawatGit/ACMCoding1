@@ -11,6 +11,7 @@ public class CodeExecutionResponse {
     private Integer obtainedMarks;
     private Integer totalMarks;
     private List<TestResult> testCaseResults;
+    private Boolean showDetailedResults;
 
     public CodeExecutionResponse() {}
 
@@ -74,5 +75,13 @@ public class CodeExecutionResponse {
 
     public void setTestCaseResults(List<TestResult> testCaseResults) {
         this.testCaseResults = testCaseResults;
+    }
+
+    public Boolean getShowDetailedResults() {
+        return showDetailedResults;
+    }
+
+    public void setShowDetailedResults(Boolean showDetailedResults) {
+        this.showDetailedResults = showDetailedResults;
     }
 }

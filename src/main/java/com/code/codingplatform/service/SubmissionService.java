@@ -188,6 +188,9 @@ public class SubmissionService {
         int obtainedMarks = 0;
         int marksPerTestCase = question.getDifficulty().getMarksPerTestCase();
 
+        boolean showDetailedResults = !actionType.equals("RUN");
+        response.setShowDetailedResults(showDetailedResults);
+
         if (testCasesToExecute.isEmpty()) {
             response.setStatus("SUCCESS");
             response.setPassedTestCases(0);
@@ -266,11 +269,11 @@ public class SubmissionService {
 
             totalMarks += marksPerTestCase;
 
-            boolean showDetails = testCase.getIsPublic() || actionType.equals("RUN") || actionType.equals("SUBMIT");
+            // For RUN mode, hide the actual inputs/outputs by marking them as "Hidden"
             testResults.add(new TestResult(
-                    showDetails ? input : "Hidden",
-                    showDetails ? expectedOutput : "Hidden",
-                    showDetails ? stdout : "Hidden",
+                    showDetailedResults ? input : "Hidden",
+                    showDetailedResults ? expectedOutput : "Hidden",
+                    showDetailedResults ? stdout : "Hidden",
                     passed,
                     message
             ));

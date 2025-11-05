@@ -1,11 +1,14 @@
 package com.code.codingplatform.payload.response;
 
+import java.time.LocalDateTime;
+
 public class LeaderboardEntry {
     private Long userId;
     private String username;
     private String email;
     private Integer grandTotalScore;
     private Integer rank;
+    private LocalDateTime submissionTime;
 
     public LeaderboardEntry() {
     }
@@ -16,6 +19,15 @@ public class LeaderboardEntry {
         this.email = email;
         this.grandTotalScore = grandTotalScore;
         this.rank = rank;
+    }
+
+    public LeaderboardEntry(Long userId, String username, String email, Integer grandTotalScore, Integer rank, LocalDateTime submissionTime) {
+        this.userId = userId;
+        this.username = username;
+        this.email = email;
+        this.grandTotalScore = grandTotalScore;
+        this.rank = rank;
+        this.submissionTime = submissionTime;
     }
 
     public Long getUserId() {
@@ -56,5 +68,13 @@ public class LeaderboardEntry {
 
     public void setRank(Integer rank) {
         this.rank = rank;
+    }
+
+    public LocalDateTime getSubmissionTime() {
+        return submissionTime;
+    }
+
+    public void setSubmissionTime(LocalDateTime submissionTime) {
+        this.submissionTime = submissionTime;
     }
 }

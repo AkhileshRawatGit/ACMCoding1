@@ -61,13 +61,11 @@ solve();`,
 let timerInterval
 let timeLeft = 600 // 10 min = 600 sec
 let autoSubmitted = false
-let isTestActive = false // Track if test has started
 
 function startTimerOnce() {
   if (currentUser.role !== "PARTICIPANT") return // Only for participants
   if (timerInterval) return // Already started, so do nothing
 
-  isTestActive = true // Mark test as active
   timeLeft = 7200 // 2 hours in seconds
   updateTimerDisplay()
 
@@ -85,7 +83,6 @@ function startTimer() {
   if (currentUser.role !== "PARTICIPANT") return // Only for participants
 
   clearInterval(timerInterval)
-  isTestActive = true // Mark test as active
   timeLeft = 7200 // 2 hours in seconds
   updateTimerDisplay()
 
@@ -110,81 +107,59 @@ function updateTimerDisplay() {
   }
 }
 
-async function autoSubmitTest(message) {
+function autoSubmitTest(message) {
   if (autoSubmitted) return
   autoSubmitted = true
-
-  console.log("[v0] Auto-submit triggered:", message)
   showNotification(message, "info")
 
-  // Save current draft before submitting all
-  if (currentQuestion && codeEditor) {
-    try {
-      await saveCurrentDraft()
-      console.log("[v0] Current draft saved")
-    } catch (error) {
-      console.error("[v0] Error saving draft:", error)
-    }
-  }
+  // Trigger final submission without confirmation
+  const loadingSpinner = document.getElementById("loadingSpinner")
+  const loadingMessage = document.getElementById("loadingMessage")
+  loadingSpinner.classList.remove("hidden")
+  loadingSpinner.classList.add("flex")
+  loadingMessage.textContent = "Auto-submitting your test due to: " + message
 
-  // Submit all questions
-  try {
-    showLoading(true)
-    const response = await fetch(`${API_BASE_URL}/participant/submit-all`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
+  fetch(`${API_BASE_URL}/participant/submit-all`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    },
+  })
+    .then((response) => {
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      return response.json()
     })
+    .then((result) => {
+      loadingSpinner.classList.add("hidden")
+      document.getElementById("submissionSuccessScreen").classList.remove("hidden")
 
-    if (response.ok) {
-      console.log("[v0] All questions submitted successfully")
-      showSubmissionSuccessScreen()
-    } else {
-      console.error("[v0] Error submitting all questions")
-      showNotification("Error submitting all questions", "error")
-      // Still logout after error
+      // Auto logout after 3 seconds
+      setTimeout(() => handleLogout(), 3000)
+    })
+    .catch((error) => {
+      console.error("[v0] Auto-submit error:", error)
+      loadingSpinner.classList.add("hidden")
+      showNotification("Error during auto-submission: " + error.message, "error")
+      // Force logout anyway after error
       setTimeout(() => handleLogout(), 2000)
-    }
-  } catch (error) {
-    console.error("[v0] Error in auto-submit:", error)
-    showNotification("Error submitting: " + error.message, "error")
-    // Still logout after error
-    setTimeout(() => handleLogout(), 2000)
-  } finally {
-    showLoading(false)
-  }
+    })
 }
 
+// Tab switch detection
 document.addEventListener("visibilitychange", () => {
-  if (currentUser?.role === "PARTICIPANT" && isTestActive && document.hidden && !autoSubmitted) {
-    console.log("[v0] Tab/window hidden - triggering auto-submit")
+  if (currentUser?.role === "PARTICIPANT" && document.hidden && !autoSubmitted) {
     autoSubmitTest("Tab switched! Auto-submitting your test...")
   }
 })
 
 window.addEventListener("blur", () => {
-  if (currentUser?.role === "PARTICIPANT" && isTestActive && !autoSubmitted) {
-    console.log("[v0] Window lost focus - triggering auto-submit")
-    autoSubmitTest("Window lost focus! Auto-submitting your test...")
-  }
-})
-
-window.addEventListener("beforeunload", (event) => {
-  if (currentUser?.role === "PARTICIPANT" && isTestActive && !autoSubmitted) {
-    console.log("[v0] Page unload detected - preventing navigation")
-    event.preventDefault()
-    event.returnValue = ""
-    return ""
-  }
-})
-
-document.addEventListener("contextmenu", (event) => {
-  if (currentUser?.role === "PARTICIPANT" && isTestActive) {
-    event.preventDefault()
-    showNotification("Right-click is disabled during the test", "error")
-    return false
+  if (
+    currentUser?.role === "PARTICIPANT" &&
+    !autoSubmitted &&
+    document.getElementById("codingInterface").classList.contains("hidden") === false
+  ) {
+    autoSubmitTest("Window switched! Auto-submitting your test...")
   }
 })
 
@@ -369,8 +344,6 @@ async function handleRegister(e) {
 
 function handleLogout() {
   console.log("[v0] Logging out")
-
-  isTestActive = false
 
   // Clear all storage
   localStorage.clear()
@@ -863,27 +836,27 @@ async function loadParticipantQuestions() {
   }
 }
 
-// Update displayParticipantQuestions function with enhanced UI
 function displayParticipantQuestions(questions) {
+  allQuestions = questions
+  filteredQuestions = questions
   const container = document.getElementById("participantQuestionsList")
   container.innerHTML = ""
 
   if (questions.length === 0) {
     container.innerHTML = `
-            <div class="col-span-full text-center py-12 text-gray-500">
-                <i class="fas fa-code text-6xl mb-4"></i>
-                <h3 class="text-xl font-semibold mb-2">No Questions Available</h3>
-                <p>Check back later for new coding challenges!</p>
+            <div class="text-center py-12 text-gray-500">
+                <i class="fas fa-search text-4xl mb-4"></i>
+                <p class="text-lg">No questions found</p>
+                <p class="text-sm">Try adjusting your search or filter criteria</p>
             </div>
         `
     return
   }
 
   questions.forEach((question, index) => {
-    const questionCard = document.createElement("div")
-    questionCard.className = "bg-white rounded-xl shadow-lg p-6 cursor-pointer card-hover animate-fade-in"
-    questionCard.style.animationDelay = `${index * 0.1}s`
-    questionCard.onclick = () => openCodingInterface(question)
+    const questionDiv = document.createElement("div")
+    questionDiv.className = "bg-white border border-gray-200 rounded-xl p-6 card-hover animate-fade-in"
+    questionDiv.style.animationDelay = `${index * 0.1}s`
 
     const difficultyClass =
       question.difficulty === "EASY"
@@ -891,1160 +864,683 @@ function displayParticipantQuestions(questions) {
         : question.difficulty === "MEDIUM"
           ? "difficulty-medium"
           : "difficulty-hard"
-    const difficultyIcon = question.difficulty === "EASY" ? "🟢" : question.difficulty === "MEDIUM" ? "🟡" : "🔴"
 
-    questionCard.innerHTML = `
-            <div class="flex items-start justify-between mb-4">
-                <h3 class="font-bold text-xl text-gray-800 flex-1 pr-4">${question.title}</h3>
-                <span class="px-3 py-1 text-xs rounded-full font-medium ${difficultyClass}">
-                    ${difficultyIcon} ${question.difficulty}
-                </span>
-            </div>
-            <p class="text-gray-600 text-sm mb-6 leading-relaxed">${question.description.substring(0, 120)}...</p>
-            <div class="space-y-3">
-                <div class="flex items-center justify-between text-sm">
-                    <span class="flex items-center text-gray-600">
-                        <i class="fas fa-keyboard mr-2"></i>
-                        Input: ${question.inputFormatType.replace(/_/g, " ")}
-                    </span>
-                    <span class="flex items-center text-indigo-600 font-medium">
-                        <i class="fas fa-check-circle mr-1"></i>
-                        ${question.testCases ? question.testCases.length : 0} test cases
-                    </span>
+    questionDiv.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-3 mb-3">
+                        <h4 class="font-bold text-lg text-gray-800">${question.title}</h4>
+                        <span class="px-3 py-1 text-xs rounded-full font-medium ${difficultyClass}">
+                            ${question.difficulty}
+                        </span>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-4 leading-relaxed">${question.description.substring(0, 150)}...</p>
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        <span class="inline-flex items-center px-3 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                            <i class="fas fa-keyboard mr-1"></i>
+                            Input: ${question.inputFormatType.replace(/_/g, " ")}
+                        </span>
+                        <span class="inline-flex items-center px-3 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                            <i class="fas fa-check-circle mr-1"></i>
+                            Test Cases: ${question.testCases ? question.testCases.length : 0}
+                        </span>
+                    </div>
+                    <div class="text-xs text-gray-500">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Complete solution required - write full program with input/output handling
+                    </div>
                 </div>
-                <div class="text-xs text-gray-500 border-t pt-3">
-                    <i class="fas fa-code mr-1"></i>
-                    Write complete solution with input/output handling
-                </div>
-            </div>
-            <div class="mt-4 pt-4 border-t border-gray-100">
-                <div class="flex items-center justify-center text-indigo-600 font-medium">
-                    <i class="fas fa-play mr-2"></i>
-                    Start Coding
+                <div class="flex space-x-2 ml-4">
+                    <button onclick="openCodingInterface(${question.id})" class="btn-icon btn-edit" title="Start Coding">
+                        <i class="fas fa-code"></i>
+                    </button>
                 </div>
             </div>
         `
-    container.appendChild(questionCard)
+    container.appendChild(questionDiv)
   })
 }
 
-async function openCodingInterface(question) {
-  if (currentQuestion && codeEditor) {
-    await saveCurrentDraft()
-  }
+// Function to handle loading and displaying of the coding interface
+function openCodingInterface(questionId) {
+  currentQuestion = allQuestions.find((q) => q.id === questionId)
 
-  currentQuestion = question
+  if (!currentQuestion) {
+    showNotification("Question not found", "error")
+    return
+  }
 
   document.getElementById("participantDashboard").classList.add("hidden")
   document.getElementById("codingInterface").classList.remove("hidden")
 
-  document.getElementById("currentQuestionTitle").textContent = question.title
-  document.getElementById("currentQuestionDescription").textContent = question.description
+  // Display question details
+  const difficultyClass =
+    currentQuestion.difficulty === "EASY"
+      ? "difficulty-easy"
+      : currentQuestion.difficulty === "MEDIUM"
+        ? "difficulty-medium"
+        : "difficulty-hard"
 
-  const difficultySpan = document.getElementById("currentQuestionDifficulty")
-  difficultySpan.textContent = question.difficulty
-  difficultySpan.className = `px-3 py-1 rounded-full text-sm ${getDifficultyClass(question.difficulty)}`
+  document.getElementById("currentQuestionTitle").textContent = currentQuestion.title
+  document.getElementById("currentQuestionDifficulty").innerHTML =
+    `<span class="px-4 py-2 rounded-full text-sm font-medium ${difficultyClass}">${currentQuestion.difficulty}</span>`
+  document.getElementById("currentQuestionInputFormat").textContent =
+    `Input: ${currentQuestion.inputFormatType.replace(/_/g, " ")}`
 
-  const inputFormatSpan = document.getElementById("currentQuestionInputFormat")
-  inputFormatSpan.textContent = `Input: ${question.inputFormatType.replace(/_/g, " ")}`
-  inputFormatSpan.className = `px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-800`
+  document.getElementById("currentQuestionDescription").textContent = currentQuestion.description
 
-  if (!codeEditor) {
-    initializeCodeEditor()
+  // Initialize code editor - destroy old instance if exists
+  const editorTextarea = document.getElementById("codeEditor")
+  if (codeEditor) {
+    codeEditor.toTextArea()
   }
 
-  await loadCodeDraft(question.id)
+  const languageSelect = document.getElementById("languageSelect")
+  const selectedLanguage = languageSelect.value
+  const boilerplate = languageBoilerplates[selectedLanguage]
 
-  document.getElementById("resultsContainer").innerHTML = '<p class="text-gray-500">Run your code to see results...</p>'
+  // Create new editor instance
+  codeEditor = CodeMirror.fromTextArea(editorTextarea, {
+    lineNumbers: true,
+    mode:
+      selectedLanguage === "71"
+        ? "python"
+        : selectedLanguage === "62"
+          ? "text/x-java"
+          : selectedLanguage === "54"
+            ? "text/x-c++src"
+            : selectedLanguage === "50"
+              ? "text/x-csrc"
+              : "text/javascript",
+    theme: "default",
+    indentUnit: 4,
+    indentWithTabs: false,
+    matchBrackets: true,
+    autoCloseBrackets: true,
+    styleActiveLine: true,
+  })
+
+  loadCodeDraft(boilerplate)
 }
 
-function initializeCodeEditor() {
-  const textarea = document.getElementById("codeEditor")
-  if (textarea && typeof CodeMirror !== "undefined") {
-    codeEditor = CodeMirror.fromTextArea(textarea, {
-      lineNumbers: true,
-      mode: "text/x-java",
-      theme: "monokai",
-      indentUnit: 4,
-      lineWrapping: true,
-      autoCloseBrackets: true,
-      matchBrackets: true,
-      styleActiveLine: true,
-      extraKeys: {
-        "Ctrl-Space": "autocomplete",
-        Tab: (cm) => {
-          if (cm.somethingSelected()) {
-            cm.indentSelection("add")
-          } else {
-            cm.replaceSelection("    ")
-          }
-        },
-      },
-    })
-
-    const defaultLanguage = document.getElementById("languageSelect").value
-    codeEditor.setValue(languageBoilerplates[defaultLanguage] || "")
-
-    document.getElementById("languageSelect").addEventListener("change", function () {
-      const languageId = this.value
-      const modes = {
-        71: "python",
-        62: "text/x-java",
-        54: "text/x-c++src",
-        50: "text/x-csrc",
-        63: "javascript",
-      }
-
-      codeEditor.setOption("mode", modes[languageId] || "text/plain")
-
-      codeEditor.setValue(languageBoilerplates[languageId] || "")
-    })
+// Function to handle back to questions button
+function backToParticipantDashboard() {
+  // Save current code draft before going back
+  if (currentQuestion && codeEditor) {
+    saveCodeDraft()
   }
+
+  document.getElementById("codingInterface").classList.add("hidden")
+  document.getElementById("participantDashboard").classList.remove("hidden")
+}
+
+// Function to handle code running
+async function runCode(action) {
+  console.log("[v0] runCode called with action:", action, "currentQuestion:", currentQuestion?.id)
+
+  if (!currentQuestion || !currentQuestion.id) {
+    showNotification("No question selected", "error")
+    return
+  }
+
+  const code = codeEditor.getValue()
+  if (!code.trim()) {
+    showNotification("Please write some code first", "error")
+    return
+  }
+
+  const languageSelect = document.getElementById("languageSelect")
+  const languageId = Number.parseInt(languageSelect.value)
+
+  showLoading(true)
+  const testResultsDiv = document.getElementById("resultsContainer")
+  testResultsDiv.innerHTML = `<div class="text-gray-600 italic">Executing code...</div>`
+
+  try {
+    const endpoint =
+      action === "compile"
+        ? `${API_BASE_URL}/participant/compile`
+        : action === "run"
+          ? `${API_BASE_URL}/participant/run`
+          : action === "submit"
+            ? `${API_BASE_URL}/participant/submit`
+            : `${API_BASE_URL}/participant/run`
+
+    const payload = {
+      questionId: currentQuestion.id,
+      code: code,
+      languageId: languageId,
+    }
+
+    console.log("[v0] Payload:", payload, "Endpoint:", endpoint)
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("[v0] Error response:", errorText)
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    console.log("[v0] Code execution result:", result)
+
+    displayCodeResults(result, action)
+  } catch (error) {
+    console.error("[v0] Error executing code:", error)
+    showNotification("Error executing code: " + error.message, "error")
+    testResultsDiv.innerHTML = `<div class="text-red-600">Error: ${error.message}</div>`
+  } finally {
+    showLoading(false)
+  }
+}
+
+// Function to display results differently for compile vs run
+function displayCodeResults(result, action) {
+  const testResultsDiv = document.getElementById("resultsContainer")
+
+  if (!testResultsDiv) {
+    console.error("[v0] Results container not found")
+    showNotification("Error: Results panel not found", "error")
+    return
+  }
+
+  testResultsDiv.innerHTML = ""
+
+  if (result.status === "COMPILATION_ERROR") {
+    testResultsDiv.innerHTML = `
+      <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+        <h3 class="text-red-700 font-bold mb-2">Compilation Error</h3>
+        <pre class="text-red-600 text-sm bg-white p-3 rounded border border-red-200 overflow-auto">${escapeHtml(result.error)}</pre>
+      </div>
+    `
+    return
+  }
+
+  const showDetailed = action === "compile" || action === "submit" || result.showDetailedResults === true
+
+  if (action === "run" && !showDetailed) {
+    // For RUN: Show summary with checkmarks
+    const passedCount = result.passedTestCases || 0
+    const totalCount = result.totalTestCases || 0
+    const percentage = totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 0
+
+    testResultsDiv.innerHTML = `
+      <div class="space-y-4">
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-6 rounded-lg">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-blue-900">Test Results Summary</h3>
+            <span class="text-3xl font-bold text-blue-600">${passedCount}/${totalCount}</span>
+          </div>
+          <div class="bg-white rounded-full h-3 overflow-hidden border border-blue-200">
+            <div class="bg-gradient-to-r from-green-400 to-blue-600 h-full" style="width: ${percentage}%"></div>
+          </div>
+          <p class="text-sm text-blue-700 mt-3 font-medium">${percentage}% tests passed</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-green-50 border border-green-200 p-4 rounded text-center">
+            <div class="text-2xl font-bold text-green-600">${passedCount}</div>
+            <div class="text-sm text-green-700">Passed</div>
+          </div>
+          <div class="bg-red-50 border border-red-200 p-4 rounded text-center">
+            <div class="text-2xl font-bold text-red-600">${totalCount - passedCount}</div>
+            <div class="text-sm text-red-700">Failed</div>
+          </div>
+        </div>
+      </div>
+    `
+  } else if (action === "compile" || action === "submit" || showDetailed) {
+    // For COMPILE/SUBMIT: Show detailed test case results
+    testResultsDiv.innerHTML = `<div class="space-y-3">`
+
+    if (result.status === "ACCEPTED") {
+      testResultsDiv.innerHTML += `
+        <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded">
+          <h3 class="text-green-700 font-bold">All Tests Passed!</h3>
+        </div>
+      `
+    } else {
+      testResultsDiv.innerHTML += `
+        <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+          <h3 class="text-red-700 font-bold">Some test cases failed</h3>
+        </div>
+      `
+    }
+
+    // Display each test case
+    if (result.testCaseResults && result.testCaseResults.length > 0) {
+      result.testCaseResults.forEach((testResult, index) => {
+        const statusClass = testResult.passed ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
+        const statusIcon = testResult.passed ? "✓" : "✗"
+        const statusColor = testResult.passed ? "text-green-600" : "text-red-600"
+
+        testResultsDiv.innerHTML += `
+          <div class="border ${statusClass} rounded-lg p-4 space-y-2">
+            <div class="flex items-center gap-2 font-bold ${statusColor}">
+              <span class="text-lg">${statusIcon}</span>
+              <span>Test Case ${index + 1}</span>
+              <span class="ml-auto text-sm font-normal">${testResult.message}</span>
+            </div>
+
+            ${
+              testResult.input !== "Hidden"
+                ? `
+              <div class="bg-white border border-gray-200 rounded p-2 text-xs">
+                <div class="text-gray-700 font-semibold mb-1">Input:</div>
+                <pre class="overflow-auto bg-gray-50 p-2 rounded text-gray-800">${escapeHtml(testResult.input)}</pre>
+              </div>
+            `
+                : ""
+            }
+
+            ${
+              testResult.expectedOutput !== "Hidden"
+                ? `
+              <div class="bg-white border border-gray-200 rounded p-2 text-xs">
+                <div class="text-gray-700 font-semibold mb-1">Expected Output:</div>
+                <pre class="overflow-auto bg-gray-50 p-2 rounded text-gray-800">${escapeHtml(testResult.expectedOutput)}</pre>
+              </div>
+            `
+                : ""
+            }
+
+            ${
+              testResult.actualOutput !== "Hidden" && testResult.actualOutput
+                ? `
+              <div class="bg-white border border-gray-200 rounded p-2 text-xs">
+                <div class="text-gray-700 font-semibold mb-1">Your Output:</div>
+                <pre class="overflow-auto bg-gray-50 p-2 rounded text-gray-800">${escapeHtml(testResult.actualOutput)}</pre>
+              </div>
+            `
+                : ""
+            }
+          </div>
+        `
+      })
+    }
+
+    testResultsDiv.innerHTML += `</div>`
+  }
+}
+
+// Helper function to escape HTML to prevent XSS
+function escapeHtml(text) {
+  const map = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
+  }
+  return text.replace(/[&<>"']/g, (m) => map[m])
 }
 
 function updateEditorMode() {
   const languageSelect = document.getElementById("languageSelect")
   const selectedLanguage = languageSelect.value
 
-  if (!currentQuestion) {
-    // Fallback if no question is selected (e.g., on initial load)
-    codeEditor.setOption("mode", "python")
-    codeEditor.setValue(`def solution(a, b):\n  # Write your Python code here\n  return a + b`)
-    return
+  // Map language ID to CodeMirror mode
+  const modeMap = {
+    71: "python",
+    62: "text/x-java",
+    54: "text/x-c++src",
+    50: "text/x-csrc",
+    63: "text/javascript",
   }
 
-  const returnType = currentQuestion.returnType
-  const parameters = currentQuestion.parameters
+  const editorMode = modeMap[selectedLanguage] || "text/x-c++src"
 
-  let mode = "python"
-  let defaultCode = ""
-  const functionParamsSignature = parameters.map((p) => p.name).join(", ")
+  // Save current code if it's not the default boilerplate
+  const currentCode = codeEditor.getValue()
 
-  switch (selectedLanguage) {
-    case "71": // Python
-      mode = "python"
-      defaultCode = `def solution(${functionParamsSignature}):
-    # Write your Python code here
-    pass`
+  // Set the new mode
+  codeEditor.setOption("mode", editorMode)
+
+  // Update boilerplate if current code is empty or is the old boilerplate
+  const boilerplate = languageBoilerplates[selectedLanguage]
+
+  let shouldUpdateBoilerplate = currentCode.trim() === ""
+
+  // Check if current code matches any existing boilerplate (user just switched without coding)
+  for (const key of Object.keys(languageBoilerplates)) {
+    if (currentCode.trim() === languageBoilerplates[key].trim()) {
+      shouldUpdateBoilerplate = true
       break
-    case "62": // Java
-      mode = "text/x-java"
-      const javaReturnType = getJavaType(returnType)
-      const javaFunctionParams = parameters.map((p) => `${getJavaType(p.type)} ${p.name}`).join(", ")
-      defaultCode = `class Solution {
-    public ${javaReturnType} solution(${javaFunctionParams}) {
-        // Write your Java code here
-        ${javaReturnType === "void" ? "" : "return null;"} // Placeholder return
     }
-}`
-      break
-    case "54": // C++
-      mode = "text/x-c++src"
-      const cppReturnType = getCppType(returnType)
-      const cppFunctionParams = parameters.map((p) => `${getCppType(p.type)} ${p.name}`).join(", ")
-      defaultCode = `${cppReturnType} solution(${cppFunctionParams}) {
-    // Write your C++ code here
-    ${cppReturnType === "void" ? "" : "return {};"} // Placeholder return
-}`
-      break
-    case "50": // C
-      mode = "text/x-csrc"
-      const cReturnType = getCType(returnType)
-      const cFunctionParams = parameters.map((p) => `${getCType(p.type)} ${p.name}`).join(", ")
-      defaultCode = `${cReturnType} solution(${cFunctionParams}) {
-    // Write your C code here
-    ${cReturnType === "void" ? "" : "return 0;"} // Placeholder return
-}`
-      break
-    case "63": // JavaScript
-      mode = "javascript"
-      defaultCode = `function solution(${functionParamsSignature}) {
-    // Write your JavaScript code here
-    return null;
-}`
-      break
   }
 
-  if (codeEditor) {
-    codeEditor.setOption("mode", mode)
-    codeEditor.setValue(defaultCode)
+  if (shouldUpdateBoilerplate && boilerplate) {
+    codeEditor.setValue(boilerplate)
   }
 }
 
-// Enhanced helper functions to get language-specific types
-function getJavaType(type) {
-  switch (type) {
-    case "INTEGER":
-      return "int"
-    case "FLOAT":
-      return "float"
-    case "DOUBLE":
-      return "double"
-    case "CHAR":
-      return "char"
-    case "BOOLEAN":
-      return "boolean"
-    case "STRING":
-      return "String"
-    case "INTEGER_ARRAY":
-      return "int[]"
-    case "FLOAT_ARRAY":
-      return "Float[]"
-    case "DOUBLE_ARRAY":
-      return "double[]"
-    case "CHAR_ARRAY":
-      return "char[]"
-    case "STRING_ARRAY":
-      return "String[]"
-    case "BOOLEAN_ARRAY":
-      return "Boolean[]"
-    case "LIST_INTEGER":
-      return "List<Integer>"
-    case "LIST_STRING":
-      return "List<String>"
-    case "LIST_DOUBLE":
-      return "List<Double>"
-    case "LIST_FLOAT":
-      return "List<Float>"
-    case "LIST_BOOLEAN":
-      return "List<Boolean>"
-    case "LISTNODE_PTR":
-      return "ListNode"
-    case "TREENODE_PTR":
-      return "TreeNode"
-    case "VOID":
-      return "void"
-    default:
-      return "Object"
-  }
-}
-
-function getCppType(type) {
-  switch (type) {
-    case "INTEGER":
-      return "int"
-    case "FLOAT":
-      return "float"
-    case "DOUBLE":
-      return "double"
-    case "CHAR":
-      return "char"
-    case "BOOLEAN":
-      return "bool"
-    case "STRING":
-      return "std::string"
-    case "INTEGER_ARRAY":
-    case "VECTOR_INT":
-      return "std::vector<int>"
-    case "FLOAT_ARRAY":
-    case "VECTOR_FLOAT":
-      return "std::vector<float>"
-    case "DOUBLE_ARRAY":
-    case "VECTOR_DOUBLE":
-      return "std::vector<double>"
-    case "CHAR_ARRAY":
-    case "VECTOR_CHAR":
-      return "std::vector<char>"
-    case "STRING_ARRAY":
-    case "VECTOR_STRING":
-      return "std::vector<std::string>"
-    case "BOOLEAN_ARRAY":
-    case "VECTOR_BOOL":
-      return "std::vector<bool>"
-    case "MAP_INT_INT":
-      return "std::map<int, int>"
-    case "MAP_STRING_INT":
-      return "std::map<std::string, int>"
-    case "MAP_INT_STRING":
-      return "std::map<int, std::string>"
-    case "MAP_STRING_STRING":
-      return "std::map<std::string, std::string>"
-    case "UNORDERED_MAP_INT_INT":
-      return "std::unordered_map<int, int>"
-    case "UNORDERED_MAP_STRING_INT":
-      return "std::unordered_map<std::string, int>"
-    case "UNORDERED_MAP_INT_STRING":
-      return "std::unordered_map<int, std::string>"
-    case "UNORDERED_MAP_STRING_STRING":
-      return "std::unordered_map<std::string, std::string>"
-    case "SET_INT":
-      return "std::set<int>"
-    case "SET_STRING":
-      return "std::set<std::string>"
-    case "UNORDERED_SET_INT":
-      return "std::unordered_set<int>"
-    case "UNORDERED_SET_STRING":
-      return "std::unordered_set<std::string>"
-    case "QUEUE_INT":
-      return "std::queue&lt;int&gt;"
-    case "STACK_INT":
-      return "std::stack&lt;int&gt;"
-    case "DEQUE_INT":
-      return "std::deque&lt;int&gt;"
-    case "PRIORITY_QUEUE_INT":
-      return "std::priority_queue&lt;int&gt;"
-    case "PAIR_INT_INT":
-      return "std::pair<int, int>"
-    case "PAIR_STRING_INT":
-      return "std::pair<std::string, int>"
-    case "PAIR_INT_STRING":
-      return "std::pair<int, std::string>"
-    case "PAIR_STRING_STRING":
-      return "std::pair<std::string, std::string>"
-    case "LISTNODE_PTR":
-      return "ListNode*"
-    case "TREENODE_PTR":
-      return "TreeNode*"
-    case "VOID":
-      return "void"
-    default:
-      return "void*"
-  }
-}
-
-function getCType(type) {
-  switch (type) {
-    case "INTEGER":
-      return "int"
-    case "FLOAT":
-      return "float"
-    case "DOUBLE":
-      return "double"
-    case "CHAR":
-      return "char"
-    case "BOOLEAN":
-      return "bool" // C uses bool with stdbool.h
-    case "STRING":
-      return "char*"
-    case "INTEGER_ARRAY":
-      return "int*" // C arrays need size parameter too
-    case "FLOAT_ARRAY":
-      return "float*"
-    case "DOUBLE_ARRAY":
-      return "double*"
-    case "STRING_ARRAY":
-      return "char**" // C string arrays need size
-    case "LISTNODE_PTR":
-      return "struct ListNode*"
-    case "TREENODE_PTR":
-      return "struct TreeNode*"
-    case "VOID":
-      return "void"
-    default:
-      return "void*"
-  }
-}
-
-async function runCode(action) {
-  const code = codeEditor.getValue()
-  const languageId = document.getElementById("languageSelect").value
-
-  if (!code.trim()) {
-    showNotification("Please write some code first!", "error")
+// Function to handle submit all button
+async function submitAllQuestions() {
+  if (!currentUser || currentUser.role !== "PARTICIPANT") {
+    showNotification("Only participants can submit", "error")
     return
   }
 
-  showLoading(true)
+  const confirmSubmit = confirm(
+    "Are you sure you want to submit all questions? This action cannot be undone and will end your test.",
+  )
+  if (!confirmSubmit) return
+
+  // Show enhanced loading screen
+  const loadingSpinner = document.getElementById("loadingSpinner")
+  const loadingMessage = document.getElementById("loadingMessage")
+  loadingSpinner.classList.remove("hidden")
+  loadingSpinner.classList.add("flex")
+  loadingMessage.textContent = "Compiling and running all questions..."
 
   try {
-    let endpoint = ""
-    switch (action) {
-      case "compile":
-        endpoint = "/participant/compile"
-        break
-      case "run":
-        endpoint = "/participant/run"
-        break
-      case "submit":
-        endpoint = "/participant/submit"
-        break
+    // Get all code drafts
+    const response = await fetch(`${API_BASE_URL}/participant/questions`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    })
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch questions")
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const questions = await response.json()
+    let completedCount = 0
+    const totalQuestions = questions.length
+
+    for (const question of questions) {
+      loadingMessage.textContent = `Processing: ${question.title} (${completedCount + 1}/${totalQuestions})`
+
+      try {
+        // Get the code draft for this question
+        const draftResponse = await fetch(`${API_BASE_URL}/participant/get-draft?questionId=${question.id}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        })
+
+        if (draftResponse.ok) {
+          const draft = await draftResponse.json()
+
+          // Run code for final submission
+          await fetch(`${API_BASE_URL}/participant/submit`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+            body: JSON.stringify({
+              questionId: question.id,
+              code: draft.code || "",
+              languageId: draft.languageId || 71,
+            }),
+          })
+        }
+      } catch (err) {
+        console.error(`[v0] Error processing question ${question.id}:`, err)
+      }
+
+      completedCount++
+    }
+
+    // After all submissions, call submit-all endpoint
+    loadingMessage.textContent = "Finalizing submission and calculating scores..."
+
+    const submitAllResponse = await fetch(`${API_BASE_URL}/participant/submit-all`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${localStorage.getItem("token")}`,
       },
-      body: JSON.stringify({
-        questionId: currentQuestion.id,
-        code: code,
-        languageId: languageId,
-      }),
     })
 
-    const result = await response.json()
-    displayResults(result, action)
-
-    if (action === "submit" && response.ok) {
-      showSubmissionSuccessScreen() // Updated: show submission success screen
+    if (!submitAllResponse.ok) {
+      throw new Error(`HTTP error! status: ${submitAllResponse.status}`)
     }
+
+    const result = await submitAllResponse.json()
+    console.log("[v0] Submit all result:", result)
+
+    // Hide loading screen
+    loadingSpinner.classList.add("hidden")
+    loadingSpinner.classList.remove("flex")
+
+    document.getElementById("codingInterface").classList.add("hidden")
+    document.getElementById("participantDashboard").classList.add("hidden")
+    document.getElementById("submissionSuccessScreen").classList.remove("hidden")
+
+    // Countdown and logout
+    let countdownTime = 5
+    const countdownEl = document.getElementById("logoutCountdown")
+
+    const countdownInterval = setInterval(() => {
+      countdownTime--
+      if (countdownEl) {
+        countdownEl.textContent = countdownTime
+      }
+
+      if (countdownTime <= 0) {
+        clearInterval(countdownInterval)
+        handleLogout()
+      }
+    }, 1000)
+
+    showNotification("All questions compiled, run, and submitted successfully!", "success")
+    autoSubmitted = true // Mark as auto-submitted to prevent duplicate submission
   } catch (error) {
-    showNotification("Error running code: " + error.message, "error")
-  } finally {
-    showLoading(false)
+    console.error("[v0] Error submitting all questions:", error)
+    showNotification("Error submitting all questions: " + error.message, "error")
+    loadingSpinner.classList.add("hidden")
+    loadingSpinner.classList.remove("flex")
   }
 }
 
-// Updated to not show score and add countdown
-function showSubmissionSuccessScreen() {
-  // Hide all other screens
-  document.getElementById("codingInterface").classList.add("hidden")
-  document.getElementById("participantDashboard").classList.add("hidden")
-  document.getElementById("navbar").classList.add("hidden")
+// Function to load leaderboard
+function loadLeaderboard() {
+  console.log("[v0] Loading leaderboard")
+  showLoading(true)
 
-  // Show submission success screen
-  document.getElementById("submissionSuccessScreen").classList.remove("hidden")
-
-  // Mark test as inactive
-  isTestActive = false
-
-  // Countdown timer
-  let countdown = 3
-  const countdownElement = document.getElementById("logoutCountdown")
-
-  const countdownInterval = setInterval(() => {
-    countdown--
-    if (countdownElement) {
-      countdownElement.textContent = countdown
-    }
-    if (countdown <= 0) {
-      clearInterval(countdownInterval)
-      handleLogout()
-    }
-  }, 1000)
-}
-
-function displayResults(result, action) {
-  const container = document.getElementById("resultsContainer")
-  container.innerHTML = ""
-
-  if (result.error) {
-    container.innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">${result.error}</div>`
-    return
-  }
-
-  // Summary
-  const summary = document.createElement("div")
-  summary.className = "bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded mb-4"
-  summary.innerHTML = `
-        <strong>Results Summary:</strong><br>
-        Passed: ${result.passedTestCases}/${result.totalTestCases} test cases<br>
-        ${action === "submit" ? `Score: ${result.obtainedMarks}/${result.totalMarks} marks` : ""}
-    `
-  container.appendChild(summary)
-
-  // Test case results
-  result.testCaseResults.forEach((testResult, index) => {
-    const testDiv = document.createElement("div")
-    testDiv.className = `border rounded p-4 mb-4 ${testResult.passed ? "border-green-400 bg-green-50" : "border-red-400 bg-red-50"}`
-
-    let content = `
-            <div class="flex justify-between items-center mb-2">
-                <strong>Test Case ${index + 1}</strong>
-                <span class="px-2 py-1 rounded text-sm ${testResult.passed ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}">
-                    ${testResult.passed ? "PASSED" : "FAILED"}
-                </span>
-            </div>
-        `
-
-    if (action === "run" || action === "submit" || (action === "compile" && index < 3)) {
-      content += `
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                        <strong>Input:</strong>
-                        <pre class="bg-gray-100 p-2 rounded mt-1">${testResult.input || "No input"}</pre>
-                    </div>
-                    <div>
-                        <strong>Expected:</strong>
-                        <pre class="bg-gray-100 p-2 rounded mt-1">${testResult.expectedOutput}</pre>
-                    </div>
-                    <div>
-                        <strong>Your Output:</strong>
-                        <pre class="bg-gray-100 p-2 rounded mt-1">${testResult.actualOutput || "No output"}</pre>
-                    </div>
-                </div>
-            `
-    }
-
-    testDiv.innerHTML = content
-    container.appendChild(testDiv)
+  fetch(`${API_BASE_URL}/admin/leaderboard`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    },
   })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return response.json()
+    })
+    .then((leaderboardData) => {
+      console.log("[v0] Leaderboard data:", leaderboardData)
+
+      const leaderboardTable = document.getElementById("leaderboardTable")
+      if (!leaderboardTable) {
+        console.error("[v0] Leaderboard table not found")
+        return
+      }
+
+      leaderboardTable.innerHTML = ""
+
+      if (!leaderboardData || leaderboardData.length === 0) {
+        leaderboardTable.innerHTML = `
+          <tr>
+            <td colspan="4" class="px-6 py-4 text-center text-gray-500">
+              No submissions yet
+            </td>
+          </tr>
+        `
+        return
+      }
+
+      leaderboardData.forEach((entry, index) => {
+        const rank = entry.rank || index + 1
+        const submissionTime = entry.submissionTime ? new Date(entry.submissionTime).toLocaleString() : "Not submitted"
+
+        const row = document.createElement("tr")
+        row.className = "hover:bg-gray-50 transition-colors duration-200"
+        row.innerHTML = `
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="flex items-center">
+              ${
+                rank === 1
+                  ? '<i class="fas fa-crown text-yellow-500 text-xl mr-2"></i>'
+                  : rank === 2
+                    ? '<i class="fas fa-medal text-gray-400 text-xl mr-2"></i>'
+                    : rank === 3
+                      ? '<i class="fas fa-medal text-orange-600 text-xl mr-2"></i>'
+                      : ""
+              }
+              <span class="text-lg font-bold text-gray-800">#${rank}</span>
+            </div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div>
+              <p class="text-sm font-semibold text-gray-800">${entry.username}</p>
+              <p class="text-sm text-gray-500">${entry.email}</p>
+            </div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-blue-100 text-blue-800">
+              <i class="fas fa-star mr-1"></i>${entry.grandTotalScore} points
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+            ${submissionTime}
+          </td>
+        `
+        leaderboardTable.appendChild(row)
+      })
+
+      showNotification("Leaderboard updated successfully", "success")
+    })
+    .catch((error) => {
+      console.error("[v0] Error loading leaderboard:", error)
+      showNotification("Error loading leaderboard: " + error.message, "error")
+
+      const leaderboardTable = document.getElementById("leaderboardTable")
+      if (leaderboardTable) {
+        leaderboardTable.innerHTML = `
+          <tr>
+            <td colspan="4" class="px-6 py-4 text-center text-red-500">
+              Error loading leaderboard
+            </td>
+          </tr>
+        `
+      }
+    })
+    .finally(() => {
+      showLoading(false)
+    })
 }
 
-// Utility Functions
-function getDifficultyClass(difficulty) {
-  switch (difficulty) {
-    case "EASY":
-      return "bg-green-200 text-green-800"
-    case "MEDIUM":
-      return "bg-yellow-200 text-yellow-800"
-    case "HARD":
-      return "bg-red-200 text-red-800"
-    default:
-      return "bg-gray-200 text-gray-800"
-  }
-}
-
-function getMarksPerTestCase(difficulty) {
-  switch (difficulty) {
-    case "EASY":
-      return 2
-    case "MEDIUM":
-      return 3
-    case "HARD":
-      return 5
-    default:
-      return 1
-  }
-}
-
-function showLoading(show) {
+// Dummy functions for undeclared variables
+function showLoading(isLoading) {
   const spinner = document.getElementById("loadingSpinner")
-  if (show) {
+  const message = document.getElementById("loadingMessage")
+
+  if (isLoading) {
     spinner.classList.remove("hidden")
     spinner.classList.add("flex")
+    message.textContent = "Processing your request..."
   } else {
     spinner.classList.add("hidden")
     spinner.classList.remove("flex")
   }
 }
 
-// Global functions for admin actions
-window.editQuestion = async (questionId) => {
-  openQuestionModal(questionId)
+function loadQuestionForEdit(questionId) {
+  // Placeholder for loadQuestionForEdit function
+  console.log(`loadQuestionForEdit called with: ${questionId}`)
 }
 
-window.deleteQuestion = deleteQuestion
+function loadCodeDraft(boilerplate) {
+  const languageSelect = document.getElementById("languageSelect")
+  const selectedLanguage = languageSelect.value
 
-// Declare loadQuestionForEdit function if it doesn't exist
-async function loadQuestionForEdit(questionId) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/admin/questions/${questionId}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    })
-    const question = await response.json()
+  showLoading(true)
 
-    document.getElementById("questionId").value = question.id
-    document.getElementById("questionTitle").value = question.title
-    document.getElementById("questionDescription").value = question.description
-    document.getElementById("questionDifficulty").value = question.difficulty
-    document.getElementById("questionInputFormat").value = question.inputFormatType
-    document.getElementById("questionReturnType").value = question.returnType // Set return type
-
-    // Populate parameters
-    const parametersList = document.getElementById("parametersList")
-    parametersList.innerHTML = "" // Clear existing parameters
-    if (question.parameters && question.parameters.length > 0) {
-      question.parameters.forEach((p) => addParameterRow(p.type, p.name))
-    } else {
-      addParameterRow() // Add a default one if none exist
-    }
-
-    const testCasesList = document.getElementById("testCasesList")
-    testCasesList.innerHTML = "" // Clear existing test cases
-
-    question.testCases.forEach((tc) => {
-      const testCaseDiv = document.createElement("div")
-      testCaseDiv.className = "border border-gray-200 rounded p-3"
-      testCaseDiv.innerHTML = `
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Input</label>
-                        <textarea class="testcase-input mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" rows="3">${tc.input || ""}</textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Expected Output</label>
-                        <textarea class="testcase-output mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" rows="3" required>${tc.expectedOutput}</textarea>
-                    </div>
-                </div>
-                <div class="flex justify-between items-center mt-2">
-                    <label class="flex items-center">
-                        <input type="checkbox" class="testcase-public mr-2" ${tc.isPublic ? "checked" : ""}>
-                        <span class="text-sm">Public Test Case</span>
-                    </label>
-                    <button type="button" onclick="this.parentElement.parentElement.remove()" class="text-red-600 hover:text-red-800 text-sm">Remove</button>
-                </div>
-            `
-      testCasesList.appendChild(testCaseDiv)
-    })
-  } catch (error) {
-    console.error("Error loading question for edit:", error)
-    alert("Error loading question for edit: " + error.message)
-  }
-}
-
-// This function seems to be a duplicate of handleQuestionSubmit's logic for creating a question.
-// It's likely intended for a different context or should be removed if not used.
-// For now, keeping it as it was in the original code, but it might be redundant.
-function createQuestion() {
-  const questionData = {
-    title: document.getElementById("questionTitle").value,
-    description: document.getElementById("questionDescription").value,
-    difficulty: document.getElementById("questionDifficulty").value,
-    inputFormatType: document.getElementById("questionInputFormat").value,
-    testCases: [],
-  }
-
-  // Collect test cases
-  const testCaseRows = document.querySelectorAll("#testCasesList > div")
-  testCaseRows.forEach((row) => {
-    const input = row.querySelector(".testcase-input").value
-    const expectedOutput = row.querySelector(".testcase-output").value
-    const isPublic = row.querySelector(".testcase-public").checked
-    if (input && expectedOutput) {
-      questionData.testCases.push({
-        input: input,
-        expectedOutput: expectedOutput,
-        isPublic: isPublic,
-      })
-    }
+  fetch(`${API_BASE_URL}/participant/get-draft/${currentQuestion.id}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    },
   })
+    .then((response) => {
+      if (response.ok) {
+        return response.json()
+      }
+      // If no draft exists, return null to use boilerplate
+      return null
+    })
+    .then((draft) => {
+      if (draft && draft.code) {
+        // Load the saved draft code
+        console.log("[v0] Loading saved draft for question", currentQuestion.id)
+        codeEditor.setValue(draft.code)
 
-  return questionData
+        // Update language select if different
+        if (draft.languageId && draft.languageId.toString() !== selectedLanguage) {
+          languageSelect.value = draft.languageId
+          updateEditorMode()
+        }
+      } else {
+        // No draft found, use boilerplate
+        console.log("[v0] No draft found, using boilerplate for question", currentQuestion.id)
+        codeEditor.setValue(boilerplate)
+      }
+      showLoading(false)
+    })
+    .catch((error) => {
+      console.error("[v0] Error loading code draft:", error)
+      // Fall back to boilerplate on error
+      codeEditor.setValue(boilerplate)
+      showLoading(false)
+    })
 }
 
-// This function is a duplicate of the one defined earlier. Removing the duplicate.
-// function displayAdminQuestions(questions) {
-//   allQuestions = questions
-//   filteredQuestions = questions
-
-//   // Update stats
-//   document.getElementById("totalQuestions").textContent = questions.length
-//   document.getElementById("easyQuestions").textContent = questions.filter((q) => q.difficulty === "EASY").length
-//   document.getElementById("hardQuestions").textContent = questions.filter((q) => q.difficulty === "HARD").length
-
-//   renderQuestionsList(filteredQuestions)
-// }
-
-// This function is a duplicate of the one defined earlier. Removing the duplicate.
-// function renderQuestionsList(questions) {
-//   const container = document.getElementById("questionsList")
-//   container.innerHTML = ""
-
-//   if (questions.length === 0) {
-//     container.innerHTML = `
-//             <div class="text-center py-12 text-gray-500">
-//                 <i class="fas fa-question-circle text-6xl mb-4"></i>
-//                 <h3 class="text-xl font-semibold mb-2">No Questions Found</h3>
-//                 <p>Create your first coding question to get started!</p>
-//             </div>
-//         `
-//     return
-//   }
-
-//   questions.forEach((question) => {
-//     const difficultyClass = getDifficultyClass(question.difficulty)
-//     const questionCard = document.createElement("div")
-//     questionCard.className = "bg-white border border-gray-200 rounded-xl p-6 card-hover"
-//     questionCard.innerHTML = `
-//             <div class="flex justify-between items-start mb-4">
-//                 <div class="flex-1">
-//                     <h3 class="text-xl font-semibold text-gray-800 mb-2">${question.title}</h3>
-//                     <p class="text-gray-600 mb-3 line-clamp-2">${question.description.substring(0, 150)}${question.description.length > 150 ? "..." : ""}</p>
-//                     <div class="flex items-center space-x-4 text-sm">
-//                         <span class="${difficultyClass} px-3 py-1 rounded-full text-xs font-medium">
-//                             ${question.difficulty}
-//                         </span>
-//                         <span class="text-gray-500">
-//                             <i class="fas fa-keyboard mr-1"></i>
-//                             Input: ${question.inputFormatType.replace(/_/g, " ")}
-//                         </span>
-//                     </div>
-//                 </div>
-//                 <div class="flex flex-col space-y-2 ml-4">
-//                     <button onclick="editQuestion(${question.id})" class="text-blue-600 hover:text-blue-800 px-3 py-2 rounded-lg hover:bg-blue-50 transition-all duration-300">
-//                         <i class="fas fa-edit mr-1"></i>Edit
-//                     </button>
-//                     <button onclick="deleteQuestion(${question.id})" class="text-red-600 hover:text-red-800 px-3 py-2 rounded-lg hover:bg-red-50 transition-all duration-300">
-//                         <i class="fas fa-trash mr-1"></i>Delete
-//                     </button>
-//                 </div>
-//             </div>
-//             <div class="flex justify-between items-center pt-4 border-t border-gray-100">
-//                 <div class="text-sm text-gray-500">
-//                     <i class="fas fa-vial mr-1"></i>
-//                     ${question.testCases ? question.testCases.length : 0} test cases
-//                 </div>
-//                 <div class="text-sm text-gray-500">
-//                     Created: ${new Date(question.createdAt).toLocaleDateString()}
-//                 </div>
-//             </div>
-//         `
-//     container.appendChild(questionCard)
-//   })
-// }
-
-function setupCodeEditor(selectedLanguage) {
-  if (!currentQuestion) {
-    console.error("No current question selected")
+function saveCodeDraft() {
+  if (!currentQuestion || !codeEditor) {
+    console.warn("[v0] Cannot save draft: no question or editor")
     return
   }
-
-  let mode = "python"
-  let defaultCode = ""
-
-  switch (selectedLanguage) {
-    case "71": // Python
-      mode = "python"
-      defaultCode = `# Write your Python code here
-# Read input and solve the problem
-# Print the output
-
-`
-      break
-    case "62": // Java
-      mode = "text/x-java"
-      defaultCode = `import java.util.*;
-import java.io.*;
-
-public class Main {
-    public static void main(String[] args) throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-
-        // Write your Java code here
-        // Read input and solve the problem
-        // Print the output
-
-        reader.close();
-    }
-}
-`
-      break
-    case "54": // C++
-      mode = "text/x-c++src"
-      defaultCode = `#include <iostream>
-#include <vector>
-#include <string>
-#include <algorithm>
-using namespace std;
-
-int main() {
-    // Write your C++ code here
-    // Read input and solve the problem
-    // Print the output
-
-    return 0;
-}
-`
-      break
-    case "50": // C
-      mode = "text/x-csrc"
-      defaultCode = `#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-int main() {
-    // Write your C code here
-    // Read input and solve the problem
-    // Print the output
-
-    return 0;
-}
-`
-      break
-    case "63": // JavaScript
-      mode = "javascript"
-      defaultCode = `const readline = require('readline');
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
-
-// Write your JavaScript code here
-// Read input and solve the problem
-// Print the output
-
-`
-      break
-  }
-
-  if (codeEditor) {
-    codeEditor.setOption("mode", mode)
-    codeEditor.setValue(defaultCode)
-  }
-}
-
-// The addTestCase function was undeclared. Assuming it's a helper for populating test cases in the edit modal.
-// Re-implementing it based on the usage in editQuestion.
-function addTestCase(input = "", expectedOutput = "", isPublic = false) {
-  const testCasesList = document.getElementById("testCasesList")
-  const testCaseDiv = document.createElement("div")
-  testCaseDiv.className = "bg-white border border-gray-200 rounded-lg p-4 mb-4 animate-fade-in"
-  testCaseDiv.innerHTML = `
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    <i class="fas fa-keyboard mr-2"></i>Input
-                </label>
-                <textarea class="testcase-input w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm" rows="3" placeholder="Enter test input...">${input}</textarea>
-            </div>
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    <i class="fas fa-check-circle mr-2"></i>Expected Output
-                </label>
-                <textarea class="testcase-output w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm" rows="3" placeholder="Enter expected output..." required>${expectedOutput}</textarea>
-            </div>
-        </div>
-        <div class="flex justify-between items-center">
-            <label class="flex items-center space-x-2 cursor-pointer">
-                <input type="checkbox" class="testcase-public w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" ${isPublic ? "checked" : ""}>
-                <span class="text-sm font-medium text-gray-700">
-                    <i class="fas fa-eye mr-1"></i>Public Test Case
-                </span>
-            </label>
-            <button type="button" onclick="this.parentElement.parentElement.remove()" class="text-red-600 hover:text-red-800 px-3 py-2 rounded-lg hover:bg-red-50 transition-all duration-300">
-                <i class="fas fa-trash mr-1"></i>Remove
-            </button>
-        </div>
-    `
-  testCasesList.appendChild(testCaseDiv)
-}
-
-async function editQuestion(id) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/admin/questions/${id}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    })
-    const question = await response.json()
-
-    // Populate form fields
-    document.getElementById("questionId").value = question.id
-    document.getElementById("questionTitle").value = question.title
-    document.getElementById("questionDescription").value = question.description
-    document.getElementById("questionDifficulty").value = question.difficulty
-    document.getElementById("questionInputFormat").value = question.inputFormatType
-    document.getElementById("questionReturnType").value = question.returnType // Set return type
-
-    // Populate parameters
-    const parametersList = document.getElementById("parametersList")
-    parametersList.innerHTML = "" // Clear existing parameters
-    if (question.parameters && question.parameters.length > 0) {
-      question.parameters.forEach((p) => addParameterRow(p.type, p.name))
-    } else {
-      addParameterRow() // Add a default one if none exist
-    }
-
-    // Populate test cases
-    const testCasesList = document.getElementById("testCasesList")
-    testCasesList.innerHTML = "" // Clear existing test cases
-    if (question.testCases && question.testCases.length > 0) {
-      question.testCases.forEach((tc) => addTestCase(tc.input, tc.expectedOutput, tc.isPublic))
-    } else {
-      addTestCase() // Add a default one if none exist
-    }
-
-    // Show modal
-    document.getElementById("modalTitle").innerHTML = '<i class="fas fa-edit mr-2"></i>Edit Question'
-    document.getElementById("questionModal").classList.remove("hidden")
-    document.getElementById("questionModal").classList.add("flex")
-  } catch (error) {
-    console.error("Error loading question:", error)
-    showNotification("Error loading question", "error")
-  }
-}
-
-async function saveCurrentDraft() {
-  if (!currentQuestion || !codeEditor) return
 
   const code = codeEditor.getValue()
-  const languageId = document.getElementById("languageSelect").value
+  const languageSelect = document.getElementById("languageSelect")
+  const languageId = Number.parseInt(languageSelect.value)
 
-  try {
-    await fetch(`${API_BASE_URL}/participant/save-draft`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-      body: JSON.stringify({
-        questionId: currentQuestion.id,
-        code: code,
-        languageId: Number.parseInt(languageId),
-      }),
-    })
-  } catch (error) {
-    console.error("Error saving draft:", error)
-  }
-}
+  console.log("[v0] Saving draft for question", currentQuestion.id, "with language", languageId)
 
-async function loadCodeDraft(questionId) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/participant/get-draft/${questionId}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    })
-
-    if (response.ok) {
-      const draft = await response.json()
-      if (draft && draft.code) {
-        document.getElementById("languageSelect").value = draft.languageId
-        const languageId = draft.languageId
-        const modes = {
-          71: "python",
-          62: "text/x-java",
-          54: "text/x-c++src",
-          50: "text/x-csrc",
-          63: "javascript",
-        }
-        codeEditor.setOption("mode", modes[languageId] || "text/plain")
-        codeEditor.setValue(draft.code)
-        return
-      }
-    }
-  } catch (error) {
-    console.error("Error loading draft:", error)
-  }
-
-  const defaultLanguage = document.getElementById("languageSelect").value
-  const modes = {
-    71: "python",
-    62: "text/x-java",
-    54: "text/x-c++src",
-    50: "text/x-csrc",
-    63: "javascript",
-  }
-  codeEditor.setOption("mode", modes[defaultLanguage] || "text/plain")
-  codeEditor.setValue(languageBoilerplates[defaultLanguage] || "")
-}
-
-async function loadGrandTotal() {
-  try {
-    const response = await fetch(`${API_BASE_URL}/participant/grand-total`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    })
-
-    if (response.ok) {
-      const data = await response.json()
-      const grandTotalElement = document.getElementById("grandTotalScore")
-      if (grandTotalElement) {
-        grandTotalElement.textContent = data.grandTotalScore
-      }
-    }
-  } catch (error) {
-    console.error("Error loading grand total:", error)
-  }
-}
-
-async function submitAllQuestions() {
-  if (!confirm("Are you sure you want to submit all your answers? This will finalize all your submissions.")) {
-    return
-  }
-
-  // Save current draft before submitting all
-  if (currentQuestion && codeEditor) {
-    await saveCurrentDraft()
-  }
-
-  showLoading(true)
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/participant/submit-all`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    })
-
-    const result = await response.json()
-
-    if (response.ok) {
-      showSubmissionSuccessScreen()
-    } else {
-      showNotification("Error submitting all questions: " + (result.error || "Unknown error"), "error")
-    }
-  } catch (error) {
-    showNotification("Error submitting all questions: " + error.message, "error")
-  } finally {
-    showLoading(false)
-  }
-}
-
-async function loadLeaderboard() {
-  try {
-    const response = await fetch(`${API_BASE_URL}/admin/leaderboard`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    })
-
-    const leaderboard = await response.json()
-    displayLeaderboard(leaderboard)
-  } catch (error) {
-    console.error("Error loading leaderboard:", error)
-  }
-}
-
-function displayLeaderboard(leaderboard) {
-  const container = document.getElementById("leaderboardTable")
-  if (!container) return
-
-  container.innerHTML = ""
-
-  if (leaderboard.length === 0) {
-    container.innerHTML = `
-      <tr>
-        <td colspan="4" class="text-center py-8 text-gray-500">
-          <i class="fas fa-trophy text-4xl mb-2"></i>
-          <p>No participants yet</p>
-        </td>
-      </tr>
-    `
-    return
-  }
-
-  leaderboard.forEach((entry) => {
-    const row = document.createElement("tr")
-    row.className = "hover:bg-gray-50 transition-colors duration-200"
-
-    const rankClass =
-      entry.rank === 1
-        ? "text-yellow-600 font-bold"
-        : entry.rank === 2
-          ? "text-gray-500 font-bold"
-          : entry.rank === 3
-            ? "text-orange-600 font-bold"
-            : ""
-
-    const rankIcon = entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : ""
-
-    row.innerHTML = `
-      <td class="px-6 py-4 whitespace-nowrap">
-        <span class="${rankClass} text-lg">${rankIcon} ${entry.rank}</span>
-      </td>
-      <td class="px-6 py-4 whitespace-nowrap">
-        <div class="flex items-center">
-          <div class="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center mr-3">
-            <i class="fas fa-user text-indigo-600 text-sm"></i>
-          </div>
-          <div>
-            <div class="text-sm font-medium text-gray-900">${entry.username}</div>
-            <div class="text-sm text-gray-500">${entry.email}</div>
-          </div>
-        </div>
-      </td>
-      <td class="px-6 py-4 whitespace-nowrap">
-        <span class="px-3 py-1 inline-flex text-lg leading-5 font-bold rounded-full bg-green-100 text-green-800">
-          ${entry.grandTotalScore} points
-        </span>
-      </td>
-    `
-    container.appendChild(row)
+  fetch(`${API_BASE_URL}/participant/save-draft`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    },
+    body: JSON.stringify({
+      questionId: currentQuestion.id,
+      code: code,
+      languageId: languageId,
+    }),
   })
-}
-
-async function backToParticipantDashboard() {
-  // Save current draft before going back
-  if (currentQuestion && codeEditor) {
-    await saveCurrentDraft()
-  }
-
-  document.getElementById("codingInterface").classList.add("hidden")
-  document.getElementById("participantDashboard").classList.remove("hidden")
-  currentQuestion = null
-}
-
-let serverWaking = false
-
-async function checkServerHealth() {
-  try {
-    const response = await originalFetch(`${API_BASE_URL}/auth/health`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
+    .then((response) => {
+      if (response.ok) {
+        console.log("[v0] Draft saved successfully for question", currentQuestion.id)
+        showNotification("Draft saved", "success")
+        return response.json()
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
     })
-    return response.ok
-  } catch (error) {
-    return false
-  }
-}
-
-async function waitForServer() {
-  if (serverWaking) return
-
-  serverWaking = true
-  showNotification("Server is starting up, please wait...", "info")
-  showLoading(true)
-
-  let attempts = 0
-  const maxAttempts = 30 // 30 attempts = 60 seconds max
-
-  while (attempts < maxAttempts) {
-    const isHealthy = await checkServerHealth()
-    if (isHealthy) {
-      serverWaking = false
-      showLoading(false)
-      showNotification("Server is ready!", "success")
-      return true
-    }
-
-    attempts++
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    if (attempts % 5 === 0) {
-      showNotification(`Still waiting for server... (${attempts * 2}s)`, "info")
-    }
-  }
-
-  serverWaking = false
-  showLoading(false)
-  showNotification("Server is taking too long to respond. Please try again.", "error")
-  return false
-}
-
-const originalFetch = window.fetch
-window.fetch = async (...args) => {
-  const maxRetries = 3
-  let delay = 2000
-
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      const response = await originalFetch(...args)
-
-      // Handle 401 - session expired
-      if (response.status === 401 && currentUser) {
-        console.log("[v0] 401 error - session expired")
-        showNotification("Session expired. Please login again.", "error")
-        setTimeout(() => handleLogout(), 1500)
-        return response
-      }
-
-      // Success or client error (don't retry)
-      if (response.ok || (response.status >= 400 && response.status < 500)) {
-        return response
-      }
-
-      // Server error - retry
-      if (response.status >= 500 && attempt < maxRetries - 1) {
-        console.log(`[v0] Server error ${response.status}, retrying...`)
-        showNotification(`Server error, retrying... (${attempt + 1}/${maxRetries})`, "info")
-        await new Promise((resolve) => setTimeout(resolve, delay))
-        delay *= 2
-        continue
-      }
-
-      return response
-    } catch (error) {
-      // Network error - server might be asleep
-      if (attempt < maxRetries - 1) {
-        console.log(`[v0] Network error, server might be waking up...`)
-
-        // On first network error, check if server is waking up
-        if (attempt === 0) {
-          const serverReady = await waitForServer()
-          if (!serverReady) {
-            throw new Error("Server is not responding. Please try again later.")
-          }
-          // Try the request again after server is ready
-          continue
-        }
-
-        showNotification(`Retrying connection... (${attempt + 1}/${maxRetries})`, "info")
-        await new Promise((resolve) => setTimeout(resolve, delay))
-        delay *= 2
-        continue
-      }
-
-      throw error
-    }
-  }
+    .catch((error) => {
+      console.error("[v0] Error saving code draft:", error)
+      showNotification("Error saving draft: " + error.message, "error")
+    })
 }
