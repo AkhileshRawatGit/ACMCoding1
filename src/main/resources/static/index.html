@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CodeArena - Online Coding Platform</title>
+    <title>FrostByte - Competitive Coding Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link
             rel="stylesheet"
@@ -29,13 +29,13 @@
           font-family: "Inter", sans-serif;
         }
 
-        /* Updated to modern dark gradient similar to Striver */
+        /* Updated gradient to frostier, more professional ice-blue theme */
         .gradient-bg {
           background: linear-gradient(
             135deg,
-            #1a1a2e 0%,
-            #16213e 50%,
-            #0f3460 100%
+            #0f172a 0%,
+            #1e293b 50%,
+            #1a2847 100%
           );
         }
 
@@ -49,15 +49,15 @@
             0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
 
-        /* Updated button styling to match modern coding platforms */
+        /* Updated button styling with cool cyan accent */
         .btn-primary {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%);
           transition: all 0.3s ease;
         }
 
         .btn-primary:hover {
           transform: translateY(-2px);
-          box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+          box-shadow: 0 10px 20px rgba(14, 165, 233, 0.4);
         }
 
         .animate-fade-in {
@@ -117,7 +117,6 @@
           color: white;
         }
 
-        /* Professional code editor container styling */
         .code-editor-container {
           border-radius: 0;
           overflow: hidden;
@@ -149,7 +148,7 @@
           width: 13px;
           height: 13px;
           border-radius: 50%;
-          background: #667eea;
+          background: #0ea5e9;
           animation-timing-function: cubic-bezier(0, 1, 1, 0);
         }
 
@@ -417,15 +416,92 @@
         .CodeMirror-scroll::-webkit-scrollbar-thumb:hover {
           background: #4f4f4f;
         }
+
+        /* Logo styling */
+        .logo-container {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .logo-icon {
+          width: 32px;
+          height: 32px;
+          object-fit: contain;
+        }
+
+        /* Enhanced login card styling for better visual appeal */
+        .auth-card {
+          background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,249,250,0.95));
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        .logo-auth-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+          margin-bottom: 32px;
+        }
+
+        .logo-auth-icon {
+          width: 64px;
+          height: 64px;
+          object-fit: contain;
+          filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+        }
+
+        .auth-title {
+          background: linear-gradient(135deg, #0ea5e9, #06b6d4);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+
+        /* Enhanced input styling */
+        .auth-input {
+          background: rgba(255, 255, 255, 0.8);
+          border: 2px solid rgba(226, 232, 240, 1);
+          transition: all 0.3s ease;
+        }
+
+        .auth-input:focus {
+          border-color: #0ea5e9;
+          box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+          background: white;
+        }
+
+        .auth-input::placeholder {
+          color: rgba(100, 116, 139, 0.7);
+        }
+
+        /* Enhanced tab styling */
+        .auth-tab-active {
+          border-bottom-color: #0ea5e9;
+          color: #0ea5e9;
+          font-weight: 600;
+        }
+
+        .auth-tab-inactive {
+          border-bottom-color: transparent;
+          color: rgba(100, 116, 139, 0.7);
+          transition: all 0.3s ease;
+        }
+
+        .auth-tab-inactive:hover {
+          color: rgba(100, 116, 139, 1);
+        }
     </style>
 </head>
 <body class="bg-gray-50">
 <!-- Navigation -->
 <nav id="navbar" class="gradient-bg text-white p-4 shadow-lg hidden">
     <div class="container mx-auto flex justify-between items-center">
-        <div class="flex items-center space-x-3">
-            <i class="fas fa-code text-2xl"></i>
-            <h1 class="text-xl font-bold">CodeArena</h1>
+        <!-- Updated navbar logo with proper branding -->
+        <div class="logo-container">
+            <img src="/img/frostbyte-logo.png" alt="FrostByte Logo" class="logo-icon">
+            <h1 class="text-xl font-bold">FrostByte</h1>
         </div>
         <div class="flex items-center space-x-4">
             <div class="flex items-center space-x-4">
@@ -456,30 +532,33 @@
 </nav>
 
 <!-- Login/Register Screen -->
+<!-- Enhanced auth card with new logo styling -->
 <div
         id="authScreen"
         class="min-h-screen gradient-bg flex items-center justify-center p-4"
 >
     <div
-            class="glass-effect p-8 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in"
+            class="auth-card p-8 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in"
     >
-        <div class="text-center mb-8">
-            <i class="fas fa-code text-4xl text-indigo-600 mb-4"></i>
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">CodeArena</h1>
-            <p class="text-gray-600">Your competitive programming platform</p>
+        <div class="logo-auth-container">
+            <img src="/img/frostbyte-logo.png" alt="FrostByte" class="logo-auth-icon">
+            <div class="text-center">
+                <h1 class="auth-title text-3xl font-bold mb-2">FrostByte</h1>
+                <p class="text-gray-500 text-sm font-medium">Master Competitive Programming</p>
+            </div>
         </div>
 
         <div class="mb-6">
             <div class="flex border-b border-gray-200">
                 <button
                         id="loginTab"
-                        class="flex-1 py-3 px-4 text-center border-b-2 border-indigo-500 text-indigo-600 font-medium transition-all duration-300"
+                        class="flex-1 py-3 px-4 text-center auth-tab-active transition-all duration-300"
                 >
                     <i class="fas fa-sign-in-alt mr-2"></i>Login
                 </button>
                 <button
                         id="registerTab"
-                        class="flex-1 py-3 px-4 text-center text-gray-500 font-medium transition-all duration-300 hover:text-gray-700"
+                        class="flex-1 py-3 px-4 text-center auth-tab-inactive transition-all duration-300"
                 >
                     <i class="fas fa-user-plus mr-2"></i>Register
                 </button>
@@ -487,84 +566,72 @@
         </div>
 
         <!-- Login Form -->
-        <form id="loginForm" class="space-y-6">
+        <form id="loginForm" class="space-y-5">
             <div class="relative">
-                <i
-                        class="fas fa-user absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                ></i>
+                <i class="fas fa-user absolute left-3 top-3.5 text-gray-400 text-sm"></i>
                 <input
                         type="text"
                         id="loginUsername"
-                        class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300"
+                        class="auth-input w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-0 focus:outline-none"
                         placeholder="Username"
                         required
                 />
             </div>
             <div class="relative">
-                <i
-                        class="fas fa-lock absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                ></i>
+                <i class="fas fa-lock absolute left-3 top-3.5 text-gray-400 text-sm"></i>
                 <input
                         type="password"
                         id="loginPassword"
-                        class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300"
+                        class="auth-input w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-0 focus:outline-none"
                         placeholder="Password"
                         required
                 />
             </div>
             <button
                     type="submit"
-                    class="w-full btn-primary text-white py-3 px-4 rounded-lg font-medium"
+                    class="w-full btn-primary text-white py-3 px-4 rounded-lg font-semibold transition-all duration-300 hover:shadow-lg"
             >
                 <i class="fas fa-sign-in-alt mr-2"></i>Login
             </button>
         </form>
 
         <!-- Register Form -->
-        <form id="registerForm" class="space-y-6 hidden">
+        <form id="registerForm" class="space-y-5 hidden">
             <div class="relative">
-                <i
-                        class="fas fa-user absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                ></i>
+                <i class="fas fa-user absolute left-3 top-3.5 text-gray-400 text-sm"></i>
                 <input
                         type="text"
                         id="registerUsername"
-                        class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300"
+                        class="auth-input w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-0 focus:outline-none"
                         placeholder="Username"
                         required
                 />
             </div>
             <div class="relative">
-                <i
-                        class="fas fa-envelope absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                ></i>
+                <i class="fas fa-envelope absolute left-3 top-3.5 text-gray-400 text-sm"></i>
                 <input
                         type="email"
                         id="registerEmail"
-                        class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300"
+                        class="auth-input w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-0 focus:outline-none"
                         placeholder="Email"
                         required
                 />
             </div>
             <div class="relative">
-                <i
-                        class="fas fa-lock absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                ></i>
+                <i class="fas fa-lock absolute left-3 top-3.5 text-gray-400 text-sm"></i>
                 <input
                         type="password"
                         id="registerPassword"
-                        class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300"
+                        class="auth-input w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-0 focus:outline-none"
                         placeholder="Password"
                         required
                 />
             </div>
             <div class="relative">
-                <i
-                        class="fas fa-user-tag absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                ></i>
+                <i class="fas fa-user-tag absolute left-3 top-3.5 text-gray-400 text-sm"></i>
                 <select
                         id="registerRole"
-                        class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300"
+                        class="auth-input w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-0 focus:outline-none"
                 >
                     <option value="PARTICIPANT">Participant</option>
                     <option value="ADMIN">Admin</option>
@@ -572,7 +639,7 @@
             </div>
             <button
                     type="submit"
-                    class="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium transition-all duration-300 hover:transform hover:scale-105"
+                    class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-300 hover:shadow-lg"
             >
                 <i class="fas fa-user-plus mr-2"></i>Register
             </button>
@@ -653,7 +720,7 @@
             <h3 class="text-2xl font-semibold text-gray-800">
                 <i class="fas fa-trophy mr-2 text-yellow-500"></i>Leaderboard
             </h3>
-            <button onclick="loadLeaderboard()" class="text-indigo-600 hover:text-indigo-800 font-medium">
+            <button onclick="loadLeaderboard()" class="text-cyan-600 hover:text-cyan-800 font-medium">
                 <i class="fas fa-sync-alt mr-2"></i>Refresh
             </button>
         </div>
@@ -697,12 +764,12 @@
                             type="text"
                             id="searchQuestions"
                             placeholder="Search questions..."
-                            class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                     />
                 </div>
                 <select
                         id="filterDifficulty"
-                        class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 >
                     <option value="">All Difficulties</option>
                     <option value="EASY">Easy</option>
@@ -1069,7 +1136,7 @@
 >
     <div class="text-center mb-8">
         <h2 class="text-4xl font-bold text-gray-800 mb-4">
-            Welcome to CodeArena
+            Welcome to FrostByte
         </h2>
         <p class="text-xl text-gray-600">
             Challenge yourself with coding problems
@@ -1108,12 +1175,12 @@
                             type="text"
                             id="participantSearch"
                             placeholder="Search problems..."
-                            class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                     />
                 </div>
                 <select
                         id="participantFilter"
-                        class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 >
                     <option value="">All Difficulties</option>
                     <option value="EASY">Easy</option>
@@ -1231,12 +1298,12 @@
                         >
                             <i class="fas fa-play mr-2"></i>Run (All Tests)
                         </button>
-<!--                        <button-->
-<!--                                id="submitBtn"-->
-<!--                                class="coding-btn flex-1 btn-primary text-white px-4 py-3 rounded-lg font-medium"-->
-<!--                        >-->
-<!--                            <i class="fas fa-paper-plane mr-2"></i>Submit Final-->
-<!--                        </button>-->
+                        <!--                        <button-->
+                        <!--                                id="submitBtn"-->
+                        <!--                                class="coding-btn flex-1 btn-primary text-white px-4 py-3 rounded-lg font-medium"-->
+                        <!--                        >-->
+                        <!--                            <i class="fas fa-paper-plane mr-2"></i>Submit Final-->
+                        <!--                        </button>-->
                     </div>
                 </div>
             </div>
